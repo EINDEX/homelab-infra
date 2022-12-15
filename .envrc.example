@@ -1,0 +1,50 @@
+export DOCKER_UID=<your-value>
+export DOCKER_GID=<your-value>
+export DOWNLOAD_PATH=<your-value>
+export MEDIA_PATH=<your-value>
+export MUSIC_PATH=<your-value>
+export CONFIG_PATH=<your-value>
+export DATA_PATH=<your-value>
+export BASE_HOST=<your-value>
+export HEALTHCHECK_INTERVAL=<your-value>
+export HEALTHCHECK_START_PERIOD=<your-value>
+export AUTHENTIK_PG_PASS=<your-value>
+export AUTHENTIK_TAG=<your-value>
+export AUTHENTIK_TOKEN=<your-value>
+export AUTHENTIK_SECRET_KEY=<your-value>
+export AUTHENTIK_ERROR_REPORTING__ENABLED=<your-value>
+export CF_DNS_API_TOKEN=<your-value>
+export RSS_PG_PASS=<your-value>
+export GITEA_PG_PASS=<your-value>
+export DRONE_GITEA_CLIENT_ID=<your-value>
+export DRONE_GITEA_CLIENT_SECRET=<your-value>
+export DRONE_GITEA_SERVER=<your-value>
+export DRONE_RPC_SECRET=<your-value>
+export DRONE_SERVER_HOST=<your-value>
+export DRONE_USER_CREATE=<your-value>
+export RSSHUB_ACCESS_KEY=<your-value>
+export WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=<your-value>
+export ACME_NAME=<your-value>
+
+### Terraform ENVs
+export AUTHENTIK_URL=<your-value>
+export AUTHENTIK_TOKEN=<your-value>
+
+
+## Homelab config
+export TF_VAR_domain=<your-value>
+export TF_VAR_port=<your-value>
+export TF_VAR_synology_url=<your-value>
+export TF_VAR_gitea_client_id=<your-value>
+export TF_VAR_gitea_client_secret=<your-value>
+
+## Terraform Providers
+export TF_VAR_github_consume_key=<your-value>
+export TF_VAR_github_consume_secret=<your-value>
+export TF_VAR_plex_client_id=<your-value>
+export TF_VAR_plex_token=<your-value>
+
+export TF_VAR_ldap_url=<your-value>
+export TF_VAR_ldap_bind_cn=<your-value>
+export TF_VAR_ldap_bind_password=<your-value>
+

@@ -1,0 +1,843 @@
+version: "3"
+
+services:
+
+  traefik:
+    image: traefik:2.9
+    command:
+      - "--api"
+      - "--ping=true"
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--accesslog=true"
+      - "--providers.docker=true"
+      - "--providers.file.filename=/traefik/traefik.toml"
+      - "--log.level=INFO"
+      - "--providers.docker.exposedByDefault=false"
+      - "--entrypoints.web.address=:8000"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.websecure.http.redirections.entryPoint.scheme=https"
+      - "--entryPoints.web.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
+      - "--entryPoints.websecure.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
+      - "--entrypoints.websecure.address=:${TF_VAR_port}"
+      - "--entrypoints.websecure.http.tls.options=default"
+      - "--entrypoints.websecure.http.tls.certResolver=${ACME_NAME}"
+      - "--entrypoints.websecure.http.tls.domains[0].main=${TF_VAR_domain}"
+      - "--entrypoints.websecure.http.tls.domains[0].sans=*.${TF_VAR_domain}"
+      # - "--experimental.http3=true"
+      # - "--entrypoints.websecure.http3"
+      # - "--entrypoints.websecure.http3.advertisedport=${TF_VAR_port}"
+      - "--certificatesresolvers.${ACME_NAME}.acme.email=eindex.me@outlook.com"
+      - "--certificatesresolvers.${ACME_NAME}.acme.storage=/traefik/acme.json"
+      - "--certificatesresolvers.${ACME_NAME}.acme.dnschallenge=true"
+      - "--certificatesresolvers.${ACME_NAME}.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.${ACME_NAME}.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+    environment:
+      - "CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.traefik.tls: true
+      traefik.http.routers.traefik.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.traefik.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.traefik.rule: Host(`traefik.${TF_VAR_domain}`)
+      traefik.http.routers.traefik.middlewares: authentik-docker@file
+      traefik.http.services.traefik.loadbalancer.server.port: 8080
+      traefik.http.services.traefik.loadbalancer.passhostheader: true
+      traefik.tls.stores.default.defaultgeneratedcert.resolver: ${ACME_NAME}
+      traefik.tls.stores.default.defaultgeneratedcert.domain.main: "*.${TF_VAR_domain}"
+      traefik.tls.stores.default.defaultgeneratedcert.domain.sans: "${TF_VAR_domain}"
+      traefik.http.middlewares.authentik.forwardauth.address: http://authentik-server:9000/outpost.goauthentik.io/auth/traefik
+      traefik.http.middlewares.authentik.forwardauth.trustForwardHeader: true
+      traefik.http.middlewares.authentik.forwardauth.authResponseHeaders: X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
+
+    ports:
+      - target: 8000
+        published: 8000
+        mode: host
+      - target: ${TF_VAR_port}
+        published: ${TF_VAR_port}
+        mode: host
+    healthcheck:
+      test: traefik healthcheck --ping
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CONFIG_PATH}/traefik:/traefik
+    restart: unless-stopped
+
+
+  authentik-postgresql:
+    image: docker.io/library/postgres:12-alpine
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    volumes:
+      - ${CONFIG_PATH}/authentik/database:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${AUTHENTIK_PG_PASS:?database password required}
+      - POSTGRES_USER=${PG_USER:-authentik}
+      - POSTGRES_DB=${PG_DB:-authentik}
+      - PUID=1026
+      - PGID=100
+      - TZ=Asia/Shanghai
+
+  authentik-redis:
+    image: docker.io/library/redis:alpine
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    command: --save 60 1 --loglevel warning
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    volumes:
+      - ${CONFIG_PATH}/authentik/redis:/data
+
+  authentik-server:
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2022.10.1}
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASS}
+    volumes:
+      - ${CONFIG_PATH}/authentik/media:/media
+      - ${CONFIG_PATH}/authentik/custom-templates:/templates
+      - ${CONFIG_PATH}/authentik/shm:/dev/shm
+      # - /var/run/docker.sock:/var/run/docker.sock
+    user: root
+    ports:
+      - 9008:9000
+    labels:
+      traefik.enable: true
+      traefik.http.routers.sso.rule: Host(`sso.${TF_VAR_domain}`)
+      traefik.http.routers.sso.tls: true
+      traefik.http.routers.sso.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.sso.entrypoints: websecure
+      traefik.http.routers.sso.tls.domains[0].main: "${TF_VAR_domain}"
+      traefik.http.routers.sso.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.services.sso.loadbalancer.server.port: 9000
+      traefik.http.services.sso.loadbalancer.passhostheader: true
+    
+  authentik-worker:
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2022.10.1}
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_HOST: http://authentik-server:9000
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_LOG_LEVEL: debug
+      AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED}
+      AUTHENTIK_REDIS__HOST: authentik-redis
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgresql
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASS}
+    user: root
+    volumes:
+      - ${CONFIG_PATH}/authentik/media:/media
+      - ${CONFIG_PATH}/authentik/certs:/certs
+      # - ${CONFIG_PATH}/authentik/shm:/dev/shm
+      - ${CONFIG_PATH}/authentik/custom-templates:/templates
+      # - /var/run/docker.sock:/var/run/docker.sock
+
+  authentik-proxy:
+    image: ghcr.io/goauthentik/proxy:${AUTHENTIK_TAG:-2022.10.1}
+    environment:
+        AUTHENTIK_HOST: http://authentik-server:9000
+        AUTHENTIK_INSECURE: "true"
+        AUTHENTIK_TOKEN: ${AUTHENTIK_TOKEN}
+        AUTHENTIK_HOST_BROWSER: https://sso.${TF_VAR_domain}:${TF_VAR_port}
+    labels:
+      traefik.enable: true
+      traefik.http.routers.sso-proxy.rule: Host(`auth.${TF_VAR_domain}`) || (HostRegexp(`{subdomain:[a-z\-]+}.${TF_VAR_domain}`) && PathPrefix(`/outpost.goauthentik.io/`))
+      traefik.http.routers.sso-proxy.tls: true
+      traefik.http.routers.sso-proxy.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.sso-proxy.entrypoints: websecure
+      traefik.http.routers.sso-proxy.tls.domains[0].main: "${TF_VAR_domain}"
+      traefik.http.routers.sso-proxy.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.services.sso-proxy.loadbalancer.server.port: 9000
+      traefik.http.services.sso-proxy.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - DEFAULT_WORKSPACE=/config/workspace #optional
+    volumes:
+      - /volume5/workspace:/config
+      - /volume5/workspace/home:/home
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 8888:${TF_VAR_port}
+    restart: unless-stopped
+    labels:
+      traefik.enable: true
+      traefik.http.routers.code-server.tls: true
+      traefik.http.routers.code-server.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.code-server.entrypoints: websecure
+      traefik.http.routers.code-server.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.code-server.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.code-server.rule: Host(`code-server.${TF_VAR_domain}`)
+      traefik.http.routers.code-server.middlewares: authentik-docker@file
+      traefik.http.services.code-server.loadbalancer.server.port: ${TF_VAR_port}
+      traefik.http.services.code-server.loadbalancer.passhostheader: true
+
+  rsshub:
+    image: diygod/rsshub
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - ACCESS_KEY=${RSSHUB_ACCESS_KEY}
+      - WHITELIST=172.0.0.0/8
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.rsshub.tls: true
+      traefik.http.routers.rsshub.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.rsshub.entrypoints: websecure
+      traefik.http.routers.rsshub.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.rsshub.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.rsshub.rule: Host(`rsshub.${TF_VAR_domain}`)
+      traefik.http.services.rsshub.loadbalancer.server.port: 1200
+      traefik.http.services.rsshub.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  rss:
+    image: lscr.io/linuxserver/freshrss
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+    volumes:
+      -  ${CONFIG_PATH}/rss:/config
+      - /run/mysqld/mysqld.sock:/var/run/mysql/mysql.sock
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.rss.tls: true
+      traefik.http.routers.rss.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.rss.entrypoints: websecure
+      traefik.http.routers.rss.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.rss.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.rss.rule: Host(`rss.${TF_VAR_domain}`)
+      traefik.http.routers.rss.middlewares: authentik-docker@file
+      traefik.http.services.rss.loadbalancer.server.port: 80
+      traefik.http.services.rss.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  hc:
+    image: lscr.io/linuxserver/healthchecks
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - ALLOWED_HOSTS=hc.${TF_VAR_domain}
+      - SITE_ROOT=https://hc.${TF_VAR_domain}:${TF_VAR_port}
+      - REMOTE_USER_HEADER=HTTP_X_AUTHENTIK_EMAIL
+    volumes:
+      -  ${CONFIG_PATH}/healthchecks:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.hc.tls: true
+      traefik.http.routers.hc.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.hc.entrypoints: websecure
+      traefik.http.routers.hc.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.hc.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.hc.rule: Host(`hc.${TF_VAR_domain}`)
+      traefik.http.routers.hc.middlewares: authentik-docker@file
+      traefik.http.services.hc.loadbalancer.server.port: 8000
+      traefik.http.services.hc.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - GENERIC_TIMEZONE=Asia/Shanghai
+      - DATA_FOLDER=/root/n8n
+      - N8N_EDITOR_BASE_URL=https://n8n.${TF_VAR_domain}:${TF_VAR_port}
+      - VUE_APP_URL_BASE_API=https://n8n.${TF_VAR_domain}:${TF_VAR_port}
+    volumes:
+      -  ${CONFIG_PATH}/n8n:/root/n8n
+    labels:
+      traefik.enable: true
+      traefik.http.routers.n8n.tls: true
+      traefik.http.routers.n8n.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.n8n.entrypoints: websecure
+      traefik.http.routers.n8n.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.n8n.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.n8n.rule: Host(`n8n.${TF_VAR_domain}`)
+      traefik.http.routers.n8n.middlewares: authentik-docker@file
+      traefik.http.services.n8n.loadbalancer.server.port: 5678
+    restart: unless-stopped
+
+  vaultwarden:
+    image: vaultwarden/server
+    environment:
+      - USER_UID=${DOCKER_UID}
+      - USER_GID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+    volumes:
+      -  ${CONFIG_PATH}/bitwarden:/data
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      traefik.enable: true
+      traefik.http.routers.vaultwarden.tls: true
+      traefik.http.routers.vaultwarden.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.vaultwarden.entrypoints: websecure
+      traefik.http.routers.vaultwarden.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.vaultwarden.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.vaultwarden.rule: Host(`valut.${TF_VAR_domain}`)
+      traefik.http.services.vaultwarden.loadbalancer.server.port: 80
+      traefik.http.services.vaultwarden.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  registry:
+    image: registry:2
+    environment:
+      - USER_UID=${DOCKER_UID}
+      - USER_GID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+    ports:
+      - 6000:5000
+    volumes:
+      -  ${CONFIG_PATH}/registry:/var/lib/registry
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+    restart: unless-stopped
+
+  drone:
+    image: drone/drone:2
+    environment:
+      - USER_UID=${DOCKER_UID}
+      - USER_GID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - DRONE_GITEA_CLIENT_ID=${DRONE_GITEA_CLIENT_ID}
+      - DRONE_GITEA_CLIENT_SECRET=${DRONE_GITEA_CLIENT_SECRET}
+      - DRONE_GITEA_SERVER=${DRONE_GITEA_SERVER}
+      - DRONE_RPC_SECRET=${DRONE_RPC_SECRET}
+      - DRONE_SERVER_HOST=${DRONE_SERVER_HOST}
+      - DRONE_SERVER_PROTO=https
+      - DRONE_USER_CREATE=${DRONE_USER_CREATE}
+    volumes:
+      -  ${CONFIG_PATH}/drone:/data
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.drone.tls: true
+      traefik.http.routers.drone.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.drone.entrypoints: websecure
+      traefik.http.routers.drone.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.drone.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.drone.rule: Host(`drone.${TF_VAR_domain}`)
+      traefik.http.routers.drone.middlewares: authentik-docker@file
+      traefik.http.services.drone.loadbalancer.server.port: 80
+      traefik.http.services.drone.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  drone-runner:
+    image: drone/drone-runner-docker:1
+    environment:
+      - USER_UID=${DOCKER_UID}
+      - USER_GID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - DRONE_RPC_PROTO=http
+      - DRONE_RPC_HOST=drone
+      - DRONE_RPC_SECRET=${DRONE_RPC_SECRET}
+      - DRONE_RUNNER_CAPACITY=2
+      - DRONE_RUNNER_NAME=my-runner
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.drone-runner.tls: true
+      traefik.http.routers.drone-runner.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.drone-runner.entrypoints: websecure
+      traefik.http.routers.drone-runner.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.drone-runner.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.drone-runner.rule: Host(`drone-runner.${TF_VAR_domain}`)
+      traefik.http.routers.drone-runner.middlewares: authentik-docker@file
+      traefik.http.services.drone-runner.loadbalancer.server.port: 3000
+      traefik.http.services.drone-runner.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  gitea:
+    image: gitea/gitea:1.17.3
+    environment:
+      - USER_UID=1026
+      - USER_GID=100
+      - TZ=Asia/Shanghai
+    volumes:
+      -  ${CONFIG_PATH}/gitea:/data
+      - /etc/localtime:/etc/localtime:ro
+      - /run/mysqld/mysqld.sock:/var/run/mysql/mysql.sock
+    ports:
+      - target: 22
+        published: 2222
+        mode: host
+    labels:
+      traefik.enable: true
+      traefik.http.routers.gitea.tls: true
+      traefik.http.routers.gitea.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.gitea.entrypoints: websecure
+      traefik.http.routers.gitea.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.gitea.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.gitea.rule: Host(`gitea.${TF_VAR_domain}`)
+      traefik.http.services.gitea.loadbalancer.server.port: 3000
+      traefik.http.services.gitea.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  fava:
+    # image: yegle/fava
+    image: 10.0.5.3:6000/eindex/fava
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=Asia/Shanghai
+      # - BEANCOUNT_FILE=/data/main.bean
+    volumes:
+      # -  ${CONFIG_PATH}/fava:/bean
+      -  ${CONFIG_PATH}/fava:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.fava.tls: true
+      traefik.http.routers.fava.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.fava.entrypoints: websecure
+      traefik.http.routers.fava.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.fava.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.fava.rule: Host(`fava.${TF_VAR_domain}`)
+      traefik.http.routers.fava.middlewares: authentik-docker@file
+      traefik.http.services.fava.loadbalancer.server.port: 5000
+      traefik.http.services.fava.loadbalancer.passhostheader: true
+    restart: unless-stopped
+    
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/plex:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+      - ${MEDIA_PATH}/学习视频:/media/learn
+      - ${MUSIC_PATH}/lidarr:/media/music
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
+    ports:
+      - "32400:32400"
+      #- "1900:1900/udp"
+      - "3005:3005"
+      #- "5353:5353/udp"
+      - "8324:8324"
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+      - "32469:32469"
+
+    # networks:
+    #   macvlan:
+    #     ipv4_address: "10.0.5.2"
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.plex.tls: true
+      traefik.http.routers.plex.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.plex.entrypoints: websecure
+      traefik.http.routers.plex.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.plex.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.plex.rule: Host(`plex.${TF_VAR_domain}`)
+      # traefik.http.routers.plex.middlewares: authentik-docker@file
+      traefik.http.services.plex.loadbalancer.server.port: 32400
+      traefik.http.services.plex.loadbalancer.passhostheader: true
+
+
+  sonarr:
+    image: linuxserver/sonarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/sonarr:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.sonarr.tls: true
+      traefik.http.routers.sonarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.sonarr.entrypoints: websecure
+      traefik.http.routers.sonarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.sonarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.sonarr.rule: Host(`sonarr.${TF_VAR_domain}`)
+      traefik.http.routers.sonarr.middlewares: authentik-docker@file
+      traefik.http.services.sonarr.loadbalancer.server.port: 8989
+      traefik.http.services.sonarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  whisparr:
+    image: hotio/whisparr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/whisparr:/config
+      - ${MEDIA_PATH}/18r:/media/18r
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.whisparr.tls: true
+      traefik.http.routers.whisparr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.whisparr.entrypoints: websecure
+      traefik.http.routers.whisparr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.whisparr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.whisparr.rule: Host(`whisparr.${TF_VAR_domain}`)
+      traefik.http.routers.whisparr.middlewares: authentik-docker@file
+      traefik.http.services.whisparr.loadbalancer.server.port: 6969
+      traefik.http.services.whisparr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/radarr:/config
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.radarr.tls: true
+      traefik.http.routers.radarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.radarr.entrypoints: websecure
+      traefik.http.routers.radarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.radarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.radarr.rule: Host(`radarr.${TF_VAR_domain}`)
+      traefik.http.routers.radarr.middlewares: authentik-docker@file
+      traefik.http.services.radarr.loadbalancer.server.port: 7878
+      traefik.http.services.radarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  lidarr:
+    image: linuxserver/lidarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/lidarr:/config
+      - ${MUSIC_PATH}/lidarr:/media/music
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.lidarr.tls: true
+      traefik.http.routers.lidarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.lidarr.entrypoints: websecure
+      traefik.http.routers.lidarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.lidarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.lidarr.rule: Host(`lidarr.${TF_VAR_domain}`)
+      traefik.http.routers.lidarr.middlewares: authentik-docker@file
+      traefik.http.services.lidarr.loadbalancer.server.port: 8686
+      traefik.http.services.lidarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  prowlarr:
+    image: linuxserver/prowlarr:develop
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/prowlarr:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.prowlarr.tls: true
+      traefik.http.routers.prowlarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.prowlarr.entrypoints: websecure
+      traefik.http.routers.prowlarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.prowlarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.prowlarr.rule: Host(`prowlarr.${TF_VAR_domain}`)
+      traefik.http.routers.prowlarr.middlewares: authentik-docker@file
+      traefik.http.services.prowlarr.loadbalancer.server.port: 9696
+      traefik.http.services.prowlarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  tautulli:
+    image: linuxserver/tautulli
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/tautulli:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.tautulli.tls: true
+      traefik.http.routers.tautulli.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.tautulli.entrypoints: websecure
+      traefik.http.routers.tautulli.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.tautulli.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.tautulli.rule: Host(`tautulli.${TF_VAR_domain}`)
+      traefik.http.routers.tautulli.middlewares: authentik-docker@file
+      traefik.http.services.tautulli.loadbalancer.server.port: 8181
+      traefik.http.services.tautulli.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  overseerr:
+    image: linuxserver/overseerr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/overseerr:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.overseerr.tls: true
+      traefik.http.routers.overseerr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.overseerr.entrypoints: websecure
+      traefik.http.routers.overseerr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.overseerr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.overseerr.rule: Host(`overseerr.${TF_VAR_domain}`)
+      traefik.http.routers.overseerr.middlewares: authentik-docker@file
+      traefik.http.services.overseerr.loadbalancer.server.port: 5055
+      traefik.http.services.overseerr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  nastool:
+    image: jxxghp/nas-tools
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/nas-tool:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+      - ${DOWNLOAD_PATH}:/media/downloads
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.nastool.tls: true
+      traefik.http.routers.nastool.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.nastool.entrypoints: websecure
+      traefik.http.routers.nastool.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.nastool.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.nastool.rule: Host(`nastool.${TF_VAR_domain}`)
+      traefik.http.routers.nastool.middlewares: authentik-docker@file
+      traefik.http.services.nastool.loadbalancer.server.port: 3000
+      traefik.http.services.nastool.loadbalancer.passhostheader: true
+
+  chinesesubfinder:
+    image: allanpk716/chinesesubfinder:latest-lite
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/chinesesubfinder:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.chinesesubfinder.tls: true
+      traefik.http.routers.chinesesubfinder.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.chinesesubfinder.entrypoints: websecure
+      traefik.http.routers.chinesesubfinder.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.chinesesubfinder.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.chinesesubfinder.rule: Host(`chinesesubfinder.${TF_VAR_domain}`)
+      traefik.http.routers.chinesesubfinder.middlewares: authentik-docker@file
+      traefik.http.services.chinesesubfinder.loadbalancer.server.port: 19035
+      traefik.http.services.chinesesubfinder.loadbalancer.passhostheader: true
+
+  qbittorrent:
+    image: linuxserver/qbittorrent
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/qbittorrent:/config
+      - ${DOWNLOAD_PATH}:/media/downloads
+    ports:
+      - 49152:49152/udp
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.qbittorrent.tls: true
+      traefik.http.routers.qbittorrent.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.qbittorrent.entrypoints: websecure
+      traefik.http.routers.qbittorrent.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.qbittorrent.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.qbittorrent.rule: Host(`qbt.${TF_VAR_domain}`)
+      traefik.http.routers.qbittorrent.middlewares: authentik-docker@file
+      traefik.http.services.qbittorrent.loadbalancer.server.port: 8080
+      traefik.http.services.qbittorrent.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  haos:
+      image: linuxserver/homeassistant
+      environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      container_name: home-assistant
+      network_mode: "host"
+        # ipvlan:
+          # ipv4_address: "10.0.5.1"
+      restart: unless-stopped
+      # ports:
+        # - 51827:51827
+        # - 21064:21064
+      volumes:
+        - /etc/localtime:/etc/localtime:ro
+        - ${CONFIG_PATH}/haos:/config
+        - /run/mysqld/mysqld.sock:/var/lib/mysql/mysql.sock
+      labels:
+        com.centurylinklabs.watchtower.enable: true
+        # traefik.enable: true
+        # traefik.http.routers.haos.tls: true
+        # traefik.http.routers.haos.tls.certresolver: ${ACME_NAME}
+        # traefik.http.routers.haos.entrypoints: websecure
+        # traefik.http.routers.haos.tls.domains[0].main: ${TF_VAR_domain}
+        # traefik.http.routers.haos.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+        # traefik.http.routers.haos.rule: Host(`haos.${TF_VAR_domain}`)
+        # traefik.http.routers.haos.middlewares: authentik-docker@file
+        # traefik.http.services.haos.loadbalancer.server.port: 8123
+        # traefik.http.services.haos.loadbalancer.passhostheader: true
+
+  memos:
+    image: neosmemo/memos:latest
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/memos:/var/opt/memos
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.memos.tls: true
+      traefik.http.routers.memos.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.memos.entrypoints: websecure
+      traefik.http.routers.memos.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.memos.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.memos.rule: Host(`memos.${TF_VAR_domain}`)
+      traefik.http.routers.memos.middlewares: authentik-docker@file
+      traefik.http.services.memos.loadbalancer.server.port: 5230
+      traefik.http.services.memos.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_NOTIFICATIONS=slack
+      - WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=${WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL}
+      - WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER=watchtower-on-yttl
+      - WATCHTOWER_NOTIFICATION_SLACK_CHANNEL=#dev
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+
+  # whoami:
+  #     image: containous/whoami
+  #     labels:
+  #       traefik.enable: true
+  #       traefik.http.routers.whoami.tls: true
+  #       traefik.http.routers.whoami.tls.certresolver: ${ACME_NAME}
+  #       traefik.http.routers.whoami.entrypoints: websecure
+  #       traefik.http.routers.whoami.tls.domains[0].main: ${TF_VAR_domain}
+  #       traefik.http.routers.whoami.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+  #       traefik.http.routers.whoami.rule: Host(`whoami.${TF_VAR_domain}`)
+  #     restart: unless-stopped
+
+# networks:
+  # macvlan:
+  #   name: vlan
+  #   driver: macvlan
+  #   driver_opts:
+  #     parent: ovs_bond0
+  #   ipam:
+  #     config:
+  #       - subnet: "10.0.0.0/20"
+  #         gateway: "10.0.0.1"
+  # ipvlan:
+  #  driver: ipvlan
+  #  driver_opts:
+  #    ipvlan_mode: l3
+  #    parent: ovs_bond0
+  #  ipam:
+  #    config:
+  #      - subnet: 10.0.0.0/20
+  #        gateway: 10.0.0.1
