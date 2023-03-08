@@ -31,8 +31,16 @@ locals {
       groups = "users"
     }
 
-    whisparr = {
-      name   = "Whisparr"
+    calibre-web = {
+      name   = "Calibre Web"
+      desc   = ""
+      group  = "Media"
+      type   = "proxy"
+      groups = "users"
+    }
+
+    jackett = {
+      name   = "Jackett"
       desc   = ""
       group  = "Media"
       type   = "proxy"
@@ -69,12 +77,12 @@ locals {
       group = "Media"
       type  = "proxy"
     }
-    tautulli = {
-      name  = "Tautulli"
-      desc  = ""
-      group = "Media"
-      type  = "proxy"
-    }
+    # tautulli = {
+    #   name  = "Tautulli"
+    #   desc  = ""
+    #   group = "Media"
+    #   type  = "proxy"
+    # }
     memos = {
       name  = "Mem OS"
       desc  = "Note"
@@ -82,8 +90,8 @@ locals {
       type  = "proxy"
       skip_path_regex = "/api/.*"
     }
-    chinesesubfinder = {
-      name  = "中文字幕查找器"
+    bazarr = {
+      name  = "Bazarr"
       desc  = ""
       group = "Media"
       type  = "proxy"
@@ -125,6 +133,7 @@ locals {
       desc  = ""
       group = "Home Build"
       type  = "proxy"
+      skip_path_regex = "^/api/.*"
     }
     code-server = {
       name  = "Code Server"
@@ -139,6 +148,7 @@ locals {
       type  = "proxy"
       skip_path_regex = "^/webhook.*\n^/rest/oauth2-credential/"
     }
+
     rss = {
       name  = "FreshRss"
       desc  = "RSS"
@@ -146,6 +156,15 @@ locals {
       type  = "proxy"
       skip_path_regex = "/api/.*"
     }
+
+    huntly = {
+      name  = "Huntly"
+      desc  = "RSS"
+      group = ""
+      type  = "proxy"
+      skip_path_regex = "/api/.*"
+    }
+
     gitea = {
       name          = "Gitea"
       desc          = "代码仓库"
@@ -164,12 +183,6 @@ locals {
       
     }
 
-    drone-runner = {
-      name          = "Drone Runner"
-      desc          = ""
-      group         = "Development"
-      type          = "proxy"
-    }
     valut = {
       name   = "Bitwarden"
       desc   = "密码管理"
