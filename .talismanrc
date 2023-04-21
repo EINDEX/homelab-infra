@@ -10,7 +10,5 @@ fileignoreconfig:
 - filename: terrafrom/values.tf
   checksum: d84e11658ce1441ca18ca16a47d2de58a9bed817afda36a03e23dc5210e39aae
 - filename: docker-compose.yaml
-  checksum: 565170eb6582f9c54864dcb1300b61b4413e90f35e851f468ae9d142ae41c9a6
-- filename: docker-compose.yaml
   checksum: a69da0d961a21c8e381657e72517cf5bc69e0aac48b9d97fa07f9043a2de9648
 version: ""
