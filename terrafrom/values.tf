@@ -77,12 +77,6 @@ locals {
       group = "Media"
       type  = "proxy"
     }
-    # tautulli = {
-    #   name  = "Tautulli"
-    #   desc  = ""
-    #   group = "Media"
-    #   type  = "proxy"
-    # }
     memos = {
       name  = "Mem OS"
       desc  = "Note"
@@ -141,6 +135,7 @@ locals {
       group = "Development"
       type  = "proxy"
     }
+
     n8n = {
       name  = "n8n"
       desc  = ""
@@ -157,14 +152,6 @@ locals {
       skip_path_regex = "/api/.*"
     }
 
-    huntly = {
-      name  = "Huntly"
-      desc  = "RSS"
-      group = ""
-      type  = "proxy"
-      skip_path_regex = "/api/.*"
-    }
-
     gitea = {
       name          = "Gitea"
       desc          = "代码仓库"
@@ -174,6 +161,7 @@ locals {
       client_secret = var.gitea_client_secret
       redirect_uris = ["https://gitea.${var.domain}:${var.port}/user/oauth2/Authentik/callback"]
     }
+
     drone = {
       name          = "Drone"
       desc          = "Pipeline"

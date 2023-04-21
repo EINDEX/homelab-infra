@@ -1,0 +1,16 @@
+fileignoreconfig:
+- filename: .envrc.example
+  checksum: a15cf754cf6699efa8ce8efc8900d81353895648adc3d4d5dee93f39a9646fe0
+- filename: terrafrom/.terraform.lock.hcl
+  checksum: 049850df70633628656951e7e30d064d2a0d4dc01a2d482a9e6b8d0622d75aa1
+- filename: terrafrom/source.tf
+  checksum: 763528a78aa750da76ad782a0d0849644ef1e967546f49bce797db84e29ab0bd
+- filename: terrafrom/application.tf
+  checksum: 38431b6052428583ef0fa9422b76e96ee7a65483a8603ecb5e8e87ac619472c9
+- filename: terrafrom/values.tf
+  checksum: d84e11658ce1441ca18ca16a47d2de58a9bed817afda36a03e23dc5210e39aae
+- filename: docker-compose.yaml
+  checksum: 565170eb6582f9c54864dcb1300b61b4413e90f35e851f468ae9d142ae41c9a6
+- filename: docker-compose.yaml
+  checksum: a69da0d961a21c8e381657e72517cf5bc69e0aac48b9d97fa07f9043a2de9648
+version: ""
