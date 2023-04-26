@@ -152,6 +152,14 @@ locals {
       skip_path_regex = "/api/.*"
     }
 
+    auto-bangumi = {
+      name  = "Auto Bangumi"
+      desc  = ""
+      group = ""
+      type  = "proxy"
+      skip_path_regex = ""
+    }
+
     gitea = {
       name          = "Gitea"
       desc          = "代码仓库"

@@ -1,13 +1,12 @@
 terraform {
-  required_version = ">= 1.1"
+  required_version = ">= 1.3"
 
   required_providers {
     authentik = {
       source  = "goauthentik/authentik"
-      version = ">= 2022.4.1"
+      version = ">= 2023.4.0"
     }
   }
-  experiments = [module_variable_optional_attrs]
 }
 
 provider "authentik" {

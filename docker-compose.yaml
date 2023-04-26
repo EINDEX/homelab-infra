@@ -721,7 +721,7 @@ services:
 
 
   nastool:
-    image: gitea.${TF_VAR_domain}:8443/eindex/nas-tool
+    image: gitea.${TF_VAR_domain}:8443/eindex/nas-tool:3.2.0
     environment:
       - PUID=${DOCKER_UID}
       - PGID=${DOCKER_GID}
@@ -860,50 +860,51 @@ services:
       traefik.http.services.memos.loadbalancer.passhostheader: true
     restart: unless-stopped
 
-  # huntly:
-  #   image: lcomplete/huntly
-  #   environment:
-  #     - PUID=${DOCKER_UID}
-  #     - PGID=${DOCKER_GID}
-  #     - TZ=Asia/Shanghai
-  #   volumes:
-  #     - ${CONFIG_PATH}/huntly:/data
-  #   labels:
-  #     com.centurylinklabs.watchtower.enable: true
-  #     traefik.enable: true
-  #     traefik.http.routers.huntly.tls: true
-  #     # traefik.http.routers.huntly.tls.certresolver: ${ACME_NAME}
-  #     traefik.http.routers.huntly.entrypoints: websecure
-  #     traefik.http.routers.huntly.tls.domains[0].main: ${TF_VAR_domain}
-  #     traefik.http.routers.huntly.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-  #     traefik.http.routers.huntly.rule: Host(`huntly.${TF_VAR_domain}`)
-  #     traefik.http.routers.huntly.middlewares: authentik-docker@file
-  #     traefik.http.services.huntly.loadbalancer.server.port: 80
-  #     traefik.http.services.huntly.loadbalancer.passhostheader: true
-  #   restart: unless-stopped
 
-  # xiaoya:
-  #   image: xiaoyaliu/alist:latest
-  #   environment:
-  #     # - PUID=${DOCKER_UID}
-  #     # - PGID=${DOCKER_GID}
-  #     - TZ=Asia/Shanghai
-  #     # - VERSION=docker
-  #   volumes:
-  #     - ${CONFIG_PATH}/xiaoya:/otp/alist
-  #   labels:
-  #     com.centurylinklabs.watchtower.enable: true
-  #     traefik.enable: true
-  #     traefik.http.routers.memos.tls: true
-  #     traefik.http.routers.memos.tls.certresolver: ${ACME_NAME}
-  #     traefik.http.routers.memos.entrypoints: websecure
-  #     traefik.http.routers.memos.tls.domains[0].main: ${TF_VAR_domain}
-  #     traefik.http.routers.memos.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-  #     traefik.http.routers.memos.rule: Host(`xiaoya.${TF_VAR_domain}`)
-  #     traefik.http.routers.memos.middlewares: authentik-docker@file
-  #     traefik.http.services.memos.loadbalancer.server.port: 5230
-  #     traefik.http.services.memos.loadbalancer.passhostheader: true
-  #   restart: unless-stopped
+  auto-bangumi:
+    image: estrellaxd/auto_bangumi:dev-latest
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+      - AB_DOWNLOADER_HOST=qbittorrent:8080
+      - AB_DOWNLOADER_USERNAME=eindex # 默认用户名
+      - AB_DOWNLOADER_PASSWORD=1234asdf # 默认密码
+      - AB_INTERVAL_TIME=7200
+      - AB_RENAME_FREQ=20
+      - AB_METHOD=Advance
+      - AB_GROUP_TAG=True
+      # - AB_NOT_CONTAIN=720|繁体|CHT|JPTC|繁日|\d+-\d+|BIG5|内嵌
+      - AB_DOWNLOAD_PATH=/media/anime
+      - AB_RSS=https://delicate-fire-8025.eindexli.workers.dev/?url=https%3A%2F%2Fmikanani.me%2FRSS%2FMyBangumi%3Ftoken%3DkFkr9pXG8t1pcvw8lPkumg%253d%253d
+      - AB_DEBUG_MODE=False
+      - AB_EP_COMPLETE=False
+      - AB_WEBUI_PORT=7892
+      - AB_RENAME=True
+      - AB_ENABLE_TMDB=True
+      - AB_LANGUAGE=zh
+      - AB_RSS_COLLECTOR=True
+      - AB_REMOVE_BAD_BT=True
+    volumes:
+      - ${CONFIG_PATH}/autoBangumi:/config
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}:/media/downloads
+    depends_on:
+      - qbittorrent
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.auto-bangumi.tls: true
+      # traefik.http.routers.auto-bangumi.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.auto-bangumi.entrypoints: websecure
+      traefik.http.routers.auto-bangumi.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.auto-bangumi.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.auto-bangumi.rule: Host(`auto-bangumi.${TF_VAR_domain}`)
+      traefik.http.routers.auto-bangumi.middlewares: authentik-docker@file
+      traefik.http.services.auto-bangumi.loadbalancer.server.port: 7892
+      traefik.http.services.auto-bangumi.loadbalancer.passhostheader: true
+    restart: unless-stopped
 
   flaresolverr:
     # DockerHub mirror flaresolverr/flaresolverr:latest
@@ -918,29 +919,6 @@ services:
       # - "${PORT:-8191}:8191"
     restart: unless-stopped
 
-
-  # archivebox:
-  #   image: archivebox/archivebox:latest
-  #   environment:
-  #     - PUID=${DOCKER_UID}
-  #     - PGID=${DOCKER_GID}
-  #     - TZ=Asia/Shanghai
-  #     - VERSION=docker
-  #   volumes:
-  #     - ${CONFIG_PATH}/archivebox:/data
-  #   labels:
-  #     com.centurylinklabs.watchtower.enable: true
-  #     traefik.enable: true
-  #     traefik.http.routers.archivebox.tls: true
-  #     traefik.http.routers.archivebox.tls.certresolver: ${ACME_NAME}
-  #     traefik.http.routers.archivebox.entrypoints: websecure
-  #     traefik.http.routers.archivebox.tls.domains[0].main: ${TF_VAR_domain}
-  #     traefik.http.routers.archivebox.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-  #     traefik.http.routers.archivebox.rule: Host(`archivebox.${TF_VAR_domain}`)
-  #     traefik.http.routers.archivebox.middlewares: authentik-docker@file
-  #     traefik.http.services.archivebox.loadbalancer.server.port: 8000
-  #     traefik.http.services.archivebox.loadbalancer.passhostheader: true
-  #   restart: unless-stopped
 
   watchtower:
     image: containrrr/watchtower
@@ -967,6 +945,28 @@ services:
   #       traefik.http.routers.whoami.tls.domains[0].sans: "*.${TF_VAR_domain}"      
   #       traefik.http.routers.whoami.rule: Host(`whoami.${TF_VAR_domain}`)
   #     restart: unless-stopped
+
+  money-postgresql:
+    image: docker.io/library/postgres:15-alpine
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    ports:
+      - 25432:5432
+    volumes:
+      - ${CONFIG_PATH}/money/database:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${MONEY_PG_PASS:?database password required}
+      - POSTGRES_USER=${MONEY_PG_USER:-money}
+      - POSTGRES_DB=${MONEY_PG_DB:-money}
+      - PUID=1026
+      - PGID=100
+      - TZ=Asia/Shanghai
 
 # networks:
   # macvlan:
