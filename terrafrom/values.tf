@@ -90,6 +90,13 @@ locals {
       group = "Media"
       type  = "proxy"
     }
+
+    jproxy = {
+      name  = "JProxy"
+      desc  = ""
+      group = "Media"
+      type  = "proxy"
+    }
     nastool = {
       name  = "NAS tools"
       desc  = ""
@@ -133,6 +140,14 @@ locals {
       name  = "Code Server"
       desc  = ""
       group = "Development"
+      type  = "proxy"
+    }
+
+
+    st = {
+      name  = "Speed Test"
+      desc  = ""
+      group = "Tools"
       type  = "proxy"
     }
 

@@ -1,0 +1,79 @@
+version: "3"
+
+services:  
+  postgresql:
+    image: docker.io/library/postgres:15-alpine
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d mastodon -U mastodon"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    volumes:
+      - ${CONFIG_PATH}/mastodon/database:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=mastodon
+      - POSTGRES_USER=mastodon
+      - POSTGRES_DB=mastodon
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+
+  cf_tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    restart: always
+
+  redis:
+    image: docker.io/library/redis:alpine
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    command: --save 60 1 --loglevel warning
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    volumes:
+      - ${CONFIG_PATH}/mastodon/redis:/data
+
+  mastodon:
+    image: lscr.io/linuxserver/mastodon:latest
+    container_name: mastodon
+    depends_on:
+      - redis
+      - postgresql
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - LOCAL_DOMAIN=social.eindex.me
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_HOST=postgresql
+      - DB_USER=mastodon
+      - DB_NAME=mastodon
+      - DB_PASS=mastodon
+      - DB_PORT=5432
+      - ES_ENABLED=false
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE}
+      - OTP_SECRET=${OTP_SECRET}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - SMTP_SERVER=smtp.qq.com
+      - SMTP_PORT=587
+      - SMTP_LOGIN=${STMP_ACCOUNT}
+      - SMTP_PASSWORD=${STMP_TOKEN}
+      - SMTP_FROM_ADDRESS=${STMP_ACCOUNT}
+      - S3_ENABLED=false
+      # - WEB_DOMAIN=xllb.cc
+      # - ALTERNATE_DOMAINS=social.xllb.cc,xllb.cc
+      - ALLOWED_PRIVATE_ADDRESSES=192.168.240.0/8
+    ports:
+      - 18880:443
+    volumes:
+      - ${CONFIG_PATH}/mastodon/config:/config
+    restart: unless-stopped

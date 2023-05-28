@@ -29,7 +29,9 @@ services:
       - "--providers.docker.exposedByDefault=false"
       - "--entrypoints.web.address=:8000"
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      # - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       - "--entrypoints.websecure.http.redirections.entryPoint.scheme=https"
+#      - "--entrypoints.websecure.http.middlewares=security@file,to-https@file"
       - "--entryPoints.web.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
       - "--entryPoints.websecure.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
       - "--entrypoints.websecure.address=:${TF_VAR_port}"
@@ -127,8 +129,6 @@ services:
       - ${CONFIG_PATH}/authentik/shm:/dev/shm
       # - /var/run/docker.sock:/var/run/docker.sock
     user: root
-    ports:
-      - 9008:9000
     labels:
       traefik.enable: true
       traefik.http.routers.sso.rule: Host(`sso.${TF_VAR_domain}`)
@@ -167,11 +167,11 @@ services:
     environment:
         AUTHENTIK_HOST: http://authentik-server:9000
         AUTHENTIK_INSECURE: "true"
-        AUTHENTIK_TOKEN: ${AUTHENTIK_TOKEN}
+        AUTHENTIK_TOKEN: ${AUTHENTIK_PROXY_TOKEN}
         AUTHENTIK_HOST_BROWSER: https://sso.${TF_VAR_domain}:${TF_VAR_port}
     labels:
       traefik.enable: true
-      traefik.http.routers.sso-proxy.rule: Host(`auth.${TF_VAR_domain}`) || (HostRegexp(`{subdomain:[a-z\-]+}.${TF_VAR_domain}`) && PathPrefix(`/outpost.goauthentik.io/`))
+      traefik.http.routers.sso-proxy.rule:  Host(`admin.${TF_VAR_domain}`) || Host(`auth.${TF_VAR_domain}`) || (HostRegexp(`{subdomain:[a-z\-]+}.${TF_VAR_domain}`) && PathPrefix(`/outpost.goauthentik.io/`))
       traefik.http.routers.sso-proxy.tls: true
       # traefik.http.routers.sso-proxy.tls.certresolver: ${ACME_NAME}
       traefik.http.routers.sso-proxy.entrypoints: websecure
@@ -220,6 +220,7 @@ services:
       - PGID=${DOCKER_GID}
       - TZ=Asia/Shanghai
       - ACCESS_KEY=${RSSHUB_ACCESS_KEY}
+      - BILIBILI_COOKIE_3163682=${BILIBILI_COOKIE}
       - WHITELIST=172.0.0.0/8
     labels:
       com.centurylinklabs.watchtower.enable: true
@@ -336,69 +337,11 @@ services:
       traefik.http.services.vaultwarden.loadbalancer.passhostheader: true
     restart: unless-stopped
 
-  drone:
-    image: drone/drone:2
-    environment:
-      - USER_UID=${DOCKER_UID}
-      - USER_GID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
-      - DRONE_GITEA_CLIENT_ID=${DRONE_GITEA_CLIENT_ID}
-      - DRONE_GITEA_CLIENT_SECRET=${DRONE_GITEA_CLIENT_SECRET}
-      - DRONE_GITEA_SERVER=${DRONE_GITEA_SERVER}
-      - DRONE_RPC_SECRET=${DRONE_RPC_SECRET}
-      - DRONE_SERVER_HOST=${DRONE_SERVER_HOST}
-      - DRONE_SERVER_PROTO=https
-      - DRONE_USER_CREATE=${DRONE_USER_CREATE}
-    volumes:
-      -  ${CONFIG_PATH}/drone:/data
-      - /etc/localtime:/etc/localtime:ro
-    labels:
-      com.centurylinklabs.watchtower.enable: true
-      traefik.enable: true
-      traefik.http.routers.drone.tls: true
-      # traefik.http.routers.drone.tls.certresolver: ${ACME_NAME}
-      traefik.http.routers.drone.entrypoints: websecure
-      traefik.http.routers.drone.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.drone.tls.domains[0].sans: "*.${TF_VAR_domain}"
-      traefik.http.routers.drone.rule: Host(`drone.${TF_VAR_domain}`)
-      traefik.http.routers.drone.middlewares: authentik-docker@file
-      traefik.http.services.drone.loadbalancer.server.port: 80
-      traefik.http.services.drone.loadbalancer.passhostheader: true
-    restart: unless-stopped
-
-  drone-runner:
-    image: drone/drone-runner-docker:1
-    environment:
-      - USER_UID=${DOCKER_UID}
-      - USER_GID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
-      - DRONE_RPC_PROTO=http
-      - DRONE_RPC_HOST=drone
-      - DRONE_RPC_SECRET=${DRONE_RPC_SECRET}
-      - DRONE_RUNNER_CAPACITY=4
-      - DRONE_RUNNER_NAME=my-runner
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    labels:
-      com.centurylinklabs.watchtower.enable: true
-      traefik.enable: false
-      traefik.http.routers.drone-runner.tls: true
-      # traefik.http.routers.drone-runner.tls.certresolver: ${ACME_NAME}
-      traefik.http.routers.drone-runner.entrypoints: websecure
-      traefik.http.routers.drone-runner.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.drone-runner.tls.domains[0].sans: "*.${TF_VAR_domain}"
-      traefik.http.routers.drone-runner.rule: Host(`drone-runner.${TF_VAR_domain}`)
-      traefik.http.routers.drone-runner.middlewares: authentik-docker@file
-      traefik.http.services.drone-runner.loadbalancer.server.port: 3000
-      traefik.http.services.drone-runner.loadbalancer.passhostheader: true
-    restart: unless-stopped
-
   gitea:
-    image: gitea/gitea:1.19
+    image: gitea/gitea:1.19.3
     environment:
-      - USER_UID=1026
-      - USER_GID=100
+      - USER_UID=${DOCKER_UID}
+      - USER_GID=${DOCKER_GID}
       - TZ=Asia/Shanghai
     volumes:
       -  ${CONFIG_PATH}/gitea:/data
@@ -416,24 +359,24 @@ services:
       traefik.http.routers.gitea.tls.domains[0].main: ${TF_VAR_domain}
       traefik.http.routers.gitea.tls.domains[0].sans: "*.${TF_VAR_domain}"
       traefik.http.routers.gitea.rule: Host(`gitea.${TF_VAR_domain}`)
+      # traefik.http.routers.gitea.middlewares: authentik-docker@file
       traefik.http.services.gitea.loadbalancer.server.port: 3000
       traefik.http.services.gitea.loadbalancer.passhostheader: true
     restart: unless-stopped
-
   gitea-act-runner:
-    image: vegardit/gitea-act-runner:latest
-    #image: ghcr.io/vegardit/gitea-act-runner:latest
+    image: gitea/act_runner
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
-      -  ${CONFIG_PATH}/gitea-act-runner:/data:rw # the config file is located at /data/.runner and needs to survive container restarts
+      - ${CONFIG_PATH}/gitea-act-runner:/data:rw # the config file is located at /data/.runner and needs to survive container restarts
     environment:
       TZ: "Asia/Shanghai"
-      # config parameters for initial runner registration:
-      GITEA_INSTANCE_INSECURE: 'true'
-      GITEA_INSTANCE_URL: 'https://gitea.${TF_VAR_domain}:8443' # required
-      # GITEA_RUNNER_REGISTRATION_TOKEN_FILE: '/data/.runner' # one-time registration token, only required on first container start
-      # or: 
-      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_ACT_RUNNER_TOKEN}
+      CONFIG_FILE: /data/config.yml
+      GITEA_INSTANCE_URL: https://gitea.${TF_VAR_domain}:8443
+      GITEA_RUNNER_REGISTRATION_TOKEN: zEeT92ThCQDt46TQAsOtFLraxkJN8xzRxo5xhiWp
+      GITEA_RUNNER_NAME: yttl-docker-runner
+      GITEA_RUNNER_LABELS: ubuntu-latest:docker://ubuntu:22.04,ubuntu-22.04:docker://ubuntu:22.04
+    labels:
+      com.centurylinklabs.watchtower.enable: true
 
   fava:
     # image: yegle/fava
@@ -475,7 +418,6 @@ services:
       - ${MEDIA_PATH}/综艺:/media/tvshow
       - ${MEDIA_PATH}/电影:/media/movie
       - ${MEDIA_PATH}/纪录片:/media/documentary
-      - ${MEDIA_PATH}/学习视频:/media/learn
       - ${MUSIC_PATH}/lidarr:/media/music
     devices:
       - /dev/dri:/dev/dri
@@ -637,31 +579,6 @@ services:
       traefik.http.services.prowlarr.loadbalancer.passhostheader: true
     restart: unless-stopped
 
-
-  jackett:
-    image: linuxserver/jackett
-    environment:
-      - PUID=${DOCKER_UID}
-      - PGID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
-      - AUTO_UPDATE=true #optional
-      - VERSION=docker
-    volumes:
-      - ${CONFIG_PATH}/jackett:/config
-    labels:
-      com.centurylinklabs.watchtower.enable: true
-      traefik.enable: true
-      traefik.http.routers.jackett.tls: true
-      # traefik.http.routers.jackett.tls.certresolver: ${ACME_NAME}
-      traefik.http.routers.jackett.entrypoints: websecure
-      traefik.http.routers.jackett.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.jackett.tls.domains[0].sans: "*.${TF_VAR_domain}"
-      traefik.http.routers.jackett.rule: Host(`jackett.${TF_VAR_domain}`)
-      traefik.http.routers.jackett.middlewares: authentik-docker@file
-      traefik.http.services.jackett.loadbalancer.server.port: 9117
-      traefik.http.services.jackett.loadbalancer.passhostheader: true
-    restart: unless-stopped
-
   overseerr:
     image: linuxserver/overseerr
     environment:
@@ -777,33 +694,6 @@ services:
       traefik.http.services.qbittorrent.loadbalancer.passhostheader: true
     restart: unless-stopped
 
-  # nextcloud:
-  #   image: linuxserver/nextcloud
-  #   environment:
-  #     - PUID=${DOCKER_UID}
-  #     - PGID=${DOCKER_GID}
-  #     - TZ=Asia/Shanghai
-  #     - VERSION=docker
-  #   volumes:
-  #     - ${CONFIG_PATH}/nextcloud/config:/config
-  #     - ${CONFIG_PATH}/nextcloud/data:/data
-  #   labels:
-  #     com.centurylinklabs.watchtower.enable: true
-  #     traefik.enable: true
-  #     traefik.http.routers.nextcloud.tls: true
-  #     traefik.http.routers.nextcloud.tls.certresolver: ${ACME_NAME}
-  #     traefik.http.routers.nextcloud.entrypoints: websecure
-  #     traefik.http.routers.nextcloud.tls.domains[0].main: ${TF_VAR_domain}
-  #     traefik.http.routers.nextcloud.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-  #     traefik.http.routers.nextcloud.rule: Host(`drive.${TF_VAR_domain}`)
-  #     traefik.http.routers.nextcloud.middlewares: security@file,nextcloud_redirectregex
-  #     traefik.http.services.nextcloud.loadbalancer.server.port: 80
-  #     traefik.http.services.nextcloud.loadbalancer.passhostheader: true
-  #     traefik.http.middlewares.nextcloud_redirectregex.redirectregex.permanent: true
-  #     traefik.http.middlewares.nextcloud_redirectregex.redirectregex.regex: 'https://(.*)/.well-known/(?:card|cal)dav'
-  #     traefik.http.middlewares.nextcloud_redirectregex.redirectregex.replacement: 'https://$${1}/remote.php/dav'
-  #   restart: unless-stopped
-
   haos:
       image: linuxserver/homeassistant
       environment:
@@ -812,13 +702,7 @@ services:
       - TZ=Asia/Shanghai
       container_name: home-assistant
       network_mode: "host"
-        # ipvlan:
-          # ipv4_address: "10.0.5.1"
       restart: unless-stopped
-      # ports:
-        # - 8123:8123
-        # - 51827:51827
-        # - 21064:21064
 
       volumes:
         - /etc/localtime:/etc/localtime:ro
@@ -826,16 +710,6 @@ services:
         - /run/mysqld/mysqld.sock:/var/lib/mysql/mysql.sock
       labels:
         com.centurylinklabs.watchtower.enable: true
-        # traefik.enable: true
-        # traefik.http.routers.haos.tls: true
-        # traefik.http.routers.haos.tls.certresolver: ${ACME_NAME}
-        # traefik.http.routers.haos.entrypoints: websecure
-        # traefik.http.routers.haos.tls.domains[0].main: ${TF_VAR_domain}
-        # traefik.http.routers.haos.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-        # traefik.http.routers.haos.rule: Host(`haos.${TF_VAR_domain}`)
-        # # traefik.http.routers.haos.middlewares: authentik-docker@file
-        # traefik.http.services.haos.loadbalancer.server.port: 8123
-        # traefik.http.services.haos.loadbalancer.passhostheader: true
 
   memos:
     image: neosmemo/memos:latest
@@ -862,7 +736,7 @@ services:
 
 
   auto-bangumi:
-    image: estrellaxd/auto_bangumi:dev-latest
+    image: estrellaxd/auto_bangumi:latest
     environment:
       - PUID=${DOCKER_UID}
       - PGID=${DOCKER_GID}
@@ -875,9 +749,8 @@ services:
       - AB_RENAME_FREQ=20
       - AB_METHOD=Advance
       - AB_GROUP_TAG=True
-      # - AB_NOT_CONTAIN=720|繁体|CHT|JPTC|繁日|\d+-\d+|BIG5|内嵌
       - AB_DOWNLOAD_PATH=/media/anime
-      - AB_RSS=https://delicate-fire-8025.eindexli.workers.dev/?url=https%3A%2F%2Fmikanani.me%2FRSS%2FMyBangumi%3Ftoken%3DkFkr9pXG8t1pcvw8lPkumg%253d%253d
+      - AB_RSS=https://mikanani.me/RSS/MyBangumi?token=${MIKAN_TOKEN}
       - AB_DEBUG_MODE=False
       - AB_EP_COMPLETE=False
       - AB_WEBUI_PORT=7892
@@ -887,7 +760,8 @@ services:
       - AB_RSS_COLLECTOR=True
       - AB_REMOVE_BAD_BT=True
     volumes:
-      - ${CONFIG_PATH}/autoBangumi:/config
+      - ${CONFIG_PATH}/autoBangumi/config:/app/config
+      - ${CONFIG_PATH}/autoBangumi/data:/app/data
       - ${MEDIA_PATH}/动漫:/media/anime
       - ${DOWNLOAD_PATH}:/media/downloads
     depends_on:
@@ -919,6 +793,28 @@ services:
       # - "${PORT:-8191}:8191"
     restart: unless-stopped
 
+  jproxy:
+    image: luckypuppy514/jproxy:latest
+    container_name: jproxy
+    restart: unless-stopped
+    environment:
+    - PUID=${DOCKER_UID}
+    - PGID=${DOCKER_GID}
+    - TZ=Asia/Shanghai
+    - JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+    - ${CONFIG_PATH}/jproxy/database:/app/database
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.jproxy.tls: true
+      traefik.http.routers.jproxy.entrypoints: websecure
+      traefik.http.routers.jproxy.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.jproxy.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.jproxy.rule: Host(`jproxy.${TF_VAR_domain}`)
+      traefik.http.routers.jproxy.middlewares: authentik-docker@file
+      traefik.http.services.jproxy.loadbalancer.server.port: 8117
+      traefik.http.services.jproxy.loadbalancer.passhostheader: true
 
   watchtower:
     image: containrrr/watchtower
@@ -934,17 +830,44 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/localtime:/etc/localtime:ro
 
-  # whoami:
-  #     image: containous/whoami
-  #     labels:
-  #       traefik.enable: true
-  #       traefik.http.routers.whoami.tls: true
-  #       traefik.http.routers.whoami.tls.certresolver: ${ACME_NAME}
-  #       traefik.http.routers.whoami.entrypoints: websecure
-  #       traefik.http.routers.whoami.tls.domains[0].main: ${TF_VAR_domain}
-  #       traefik.http.routers.whoami.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-  #       traefik.http.routers.whoami.rule: Host(`whoami.${TF_VAR_domain}`)
-  #     restart: unless-stopped
+  atuin:
+    restart: always
+    image: ghcr.io/ellie/atuin:main
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    command: server start
+    volumes:
+      - "${CONFIG_PATH}/atuin/config:/config"
+    links:
+      - atuin-postgresql:db
+    environment:
+      ATUIN_HOST: "0.0.0.0"
+      ATUIN_OPEN_REGISTRATION: "false"
+      ATUIN_DB_URI: postgres://atuin:${ATUIN_DB_PASSWORD}@db/atuin
+
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.atuin.tls: true
+      # traefik.http.routers.atuin.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.atuin.entrypoints: websecure
+      traefik.http.routers.atuin.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.atuin.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.atuin.rule: Host(`atuin.${TF_VAR_domain}`)
+      # traefik.http.routers.atuin.middlewares: authentik-docker@file
+      traefik.http.services.atuin.loadbalancer.server.port: 8888
+      traefik.http.services.atuin.loadbalancer.passhostheader: true
+
+
+  atuin-postgresql:
+    image: postgres:14
+    restart: unless-stopped
+    volumes: # 不要删除索引数据库文件的永久存储空间!
+      - "${CONFIG_PATH}/atuin/database:/var/lib/postgresql/data/"
+    environment:
+      POSTGRES_USER: atuin
+      POSTGRES_PASSWORD: ${ATUIN_DB_PASSWORD}
+      POSTGRES_DB: atuin
+
 
   money-postgresql:
     image: docker.io/library/postgres:15-alpine
@@ -968,23 +891,23 @@ services:
       - PGID=100
       - TZ=Asia/Shanghai
 
-# networks:
-  # macvlan:
-  #   name: vlan
-  #   driver: macvlan
-  #   driver_opts:
-  #     parent: ovs_bond0
-  #   ipam:
-  #     config:
-  #       - subnet: "10.0.0.0/20"
-  #         gateway: "10.0.0.1"
-  # ipvlan:
-  #  driver: ipvlan
-  #  driver_opts:
-  #    ipvlan_mode: l3
-  #    parent: ovs_bond0
-  #  ipam:
-  #    config:
-  #      - subnet: 10.0.0.0/20
-  #        gateway: 10.0.0.1
+  # cf_tunnel:
+  #   image: cloudflare/cloudflared:latest
+  #   command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+  #   restart: always
 
+  speed_test:
+    image: badapple9/speedtest-x
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.http.routers.st.tls: true
+      # traefik.http.routers.atuin.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.st.entrypoints: websecure
+      traefik.http.routers.st.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.st.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.st.rule: Host(`st.${TF_VAR_domain}`)
+      traefik.http.routers.atuin.middlewares: authentik-docker@file
+      traefik.http.services.st.loadbalancer.server.port: 80
+      traefik.http.services.st.loadbalancer.passhostheader: truedock

@@ -29,8 +29,8 @@ data "authentik_scope_mapping" "oauth" {
 
 ### OAuth Application Template
 resource "authentik_provider_oauth2" "oauth_provider" {
-  access_token_validity      = "hours=1"
-  refresh_token_validity     = "weeks=2"
+  access_token_validity      = "days=3"
+  refresh_token_validity     = "weeks=3"
   for_each           = local.oauth_apps
   name               = each.value.name
   client_id          = each.value.client_id
@@ -69,8 +69,8 @@ resource "authentik_provider_proxy" "proxy_provider" {
   mode               = lookup(each.value, "mode", "forward_single")
   internal_host =  lookup(each.value, "internal_host", null)
   internal_host_ssl_validation = lookup(each.value, "internal_host_ssl_validation", null)
-  access_token_validity     = "hours=1"
-  refresh_token_validity     = "weeks=2"
+  access_token_validity      = "days=3"
+  refresh_token_validity     = "weeks=3"
   skip_path_regex    = lookup(each.value, "skip_path_regex", "")
 }
 

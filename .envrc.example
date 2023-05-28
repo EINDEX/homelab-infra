@@ -25,6 +25,8 @@ export DRONE_USER_CREATE=<your-value>
 export RSSHUB_ACCESS_KEY=<your-value>
 export WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=<your-value>
 export ACME_NAME=<your-value>
+export ATUIN_DB_PASSWORD=<your-value>
+export CF_TUNNEL_TOKEN=<your-value>
 
 ### Terraform ENVs
 export AUTHENTIK_URL=<your-value>
