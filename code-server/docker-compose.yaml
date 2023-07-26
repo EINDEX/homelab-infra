@@ -1,0 +1,41 @@
+version: '3'
+
+services:
+  
+
+  code-server:
+    image: ghcr.io/coder/code-server:ubuntu
+    container_name: code-server
+    user: ${DOCKER_UID}:${DOCKER_GROUP_ID}
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GROUP_ID}
+      - TZ=Asia/Shanghai
+      - DOCKER_USER=eindex
+      - ENTRYPOINTD=/home/coder/entrypoint.d
+    volumes:
+      - ${CONFIG_PATH}/code-server:/home/coder/.config
+      - /volume5/workspace/workspace:/home/coder
+      - /volume5/workspace/home/linuxbrew:/home/linuxbrew
+      - /volume5/workspace/homelab-configs:/homelab-configs
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    ports:
+      - 22:22222
+    labels:
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.code-server.tls: true
+      # traefik.http.routers.code-server.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.code-server.entrypoints: websecure
+      traefik.http.routers.code-server.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.code-server.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.code-server.rule: Host(`code-server.${TF_VAR_domain}`)
+      traefik.http.routers.code-server.middlewares: authentik-docker@file
+      traefik.http.services.code-server.loadbalancer.server.port: 8080
+      traefik.http.services.code-server.loadbalancer.passhostheader: true
+
+networks:
+  default:
+    name: network_default
+    external: true

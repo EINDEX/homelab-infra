@@ -1,0 +1,86 @@
+version: "3"
+
+services:
+  acme:
+    image: neilpang/acme.sh:latest
+    volumes:
+      - ${CONFIG_PATH}/acme:/acme.sh
+    environment:
+      # Azure
+      - "CF_Token=${CF_DNS_API_TOKEN}"
+      - "CF_Email=snowstarlbk@gmail.com"
+      - "CERT_DOMAIN=*.${TF_VAR_domain}"
+      - "CERT_DNS=dns_cf"
+    command: daemon
+    container_name: acme
+
+
+  traefik:
+    image: traefik:2.9
+    command:
+      - "--api"
+      - "--ping=true"
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--accesslog=true"
+      - "--providers.docker=true"
+      - "--providers.file.filename=/traefik/traefik.toml"
+      - "--log.level=INFO"
+      - "--providers.docker.exposedByDefault=false"
+      - "--entrypoints.web.address=:8000"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      # - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.websecure.http.redirections.entryPoint.scheme=https"
+#      - "--entrypoints.websecure.http.middlewares=security@file,to-https@file"
+      - "--entryPoints.web.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
+      - "--entryPoints.websecure.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
+      - "--entrypoints.websecure.address=:${TF_VAR_port}"
+      - "--entrypoints.websecure.http.tls.options=default"
+      #- "--entrypoints.websecure.http.tls.certResolver=${ACME_NAME}"
+      - "--entrypoints.websecure.http.tls.domains[0].main=${TF_VAR_domain}"
+      - "--entrypoints.websecure.http.tls.domains[0].sans=*.${TF_VAR_domain}"
+      # - "--experimental.http3=true"
+      # - "--entrypoints.websecure.http3"
+      # - "--entrypoints.websecure.http3.advertisedport=${TF_VAR_port}"
+    environment:
+      - "CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.traefik.tls: true
+      traefik.http.routers.traefik.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.traefik.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.traefik.rule: Host(`traefik.${TF_VAR_domain}`)
+      traefik.http.routers.traefik.middlewares: authentik-docker@file
+      traefik.http.services.traefik.loadbalancer.server.port: 8080
+      traefik.http.services.traefik.loadbalancer.passhostheader: true
+      traefik.tls.stores.default.defaultgeneratedcert.resolver: ${ACME_NAME}
+      traefik.tls.stores.default.defaultgeneratedcert.domain.main: "*.${TF_VAR_domain}"
+      traefik.tls.stores.default.defaultgeneratedcert.domain.sans: "${TF_VAR_domain}"
+      traefik.http.middlewares.authentik.forwardauth.address: http://authentik-server:9000/outpost.goauthentik.io/auth/traefik
+      traefik.http.middlewares.authentik.forwardauth.trustForwardHeader: true
+      traefik.http.middlewares.authentik.forwardauth.authResponseHeaders: X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
+
+    ports:
+      - target: 8000
+        published: 8000
+        mode: host
+      - target: ${TF_VAR_port}
+        published: ${TF_VAR_port}
+        mode: host
+    healthcheck:
+      test: traefik healthcheck --ping
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CONFIG_PATH}/traefik:/traefik
+      - ${CONFIG_PATH}/acme:/certs
+    restart: unless-stopped
+
+
+
+
+  # cf_tunnel:
+  #   image: cloudflare/cloudflared:latest
+  #   command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+  #   restart: always

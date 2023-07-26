@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  
+
+  fava:
+    # image: yegle/fava
+    image: gitea.${TF_VAR_domain}:8443/eindex/fava
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=Asia/Shanghai
+      # - BEANCOUNT_FILE=/data/main.bean
+    volumes:
+      # -  ${CONFIG_PATH}/fava:/bean
+      -  ${CONFIG_PATH}/fava:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.fava.tls: true
+      traefik.http.routers.fava.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.fava.entrypoints: websecure
+      traefik.http.routers.fava.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.fava.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.fava.rule: Host(`fava.${TF_VAR_domain}`)
+      traefik.http.routers.fava.middlewares: authentik-docker@file
+      traefik.http.services.fava.loadbalancer.server.port: 5000
+      traefik.http.services.fava.loadbalancer.passhostheader: true
+    restart: unless-stopped
+    
+
+  money-postgresql:
+    image: docker.io/library/postgres:15-alpine
+    user: ${DOCKER_UID}:${DOCKER_GID}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    ports:
+      - 25432:5432
+    volumes:
+      - ${CONFIG_PATH}/money/database:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${MONEY_PG_PASS:?database password required}
+      - POSTGRES_USER=${MONEY_PG_USER:-money}
+      - POSTGRES_DB=${MONEY_PG_DB:-money}
+      - PUID=1026
+      - PGID=100
+      - TZ=Asia/Shanghai
+networks:
+  default:
+    name: network_default
+    external: true
+  autin:

@@ -1,0 +1,393 @@
+version: '3'
+
+services:
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/plex:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+      - ${MUSIC_PATH}/lidarr:/media/music
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
+    ports:
+      - "32400:32400"
+      #- "1900:1900/udp"
+      - "3005:3005"
+      #- "5353:5353/udp"
+      - "8324:8324"
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+      - "32469:32469"
+
+    # networks:
+    #   macvlan:
+    #     ipv4_address: "10.0.5.2"
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.plex.tls: true
+      # traefik.http.routers.plex.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.plex.entrypoints: websecure
+      traefik.http.routers.plex.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.plex.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.plex.rule: Host(`plex.${TF_VAR_domain}`)
+      # traefik.http.routers.plex.middlewares: authentik-docker@file
+      traefik.http.services.plex.loadbalancer.server.port: 32400
+      traefik.http.services.plex.loadbalancer.passhostheader: true
+
+
+  sonarr:
+    image: linuxserver/sonarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/sonarr:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.sonarr.tls: true
+      # traefik.http.routers.sonarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.sonarr.entrypoints: websecure
+      traefik.http.routers.sonarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.sonarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.sonarr.rule: Host(`sonarr.${TF_VAR_domain}`)
+      traefik.http.routers.sonarr.middlewares: authentik-docker@file
+      traefik.http.services.sonarr.loadbalancer.server.port: 8989
+      traefik.http.services.sonarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  calibre-web:
+    image: linuxserver/calibre-web
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+      - DOCKER_MODS=linuxserver/mods:universal-calibre
+    security_opt:
+      - seccomp:unconfined 
+    volumes:
+      - ${CONFIG_PATH}/calibre-web:/config
+      - ${MEDIA_PATH}/books:/media/books
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.calibre-web.tls: true
+      # traefik.http.routers.calibre-web.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.calibre-web.entrypoints: websecure
+      traefik.http.routers.calibre-web.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.calibre-web.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.calibre-web.rule: Host(`calibre-web.${TF_VAR_domain}`)
+      traefik.http.routers.calibre-web.middlewares: authentik-docker@file
+      traefik.http.services.calibre-web.loadbalancer.server.port: 8083
+      traefik.http.services.calibre-web.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/radarr:/config
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.radarr.tls: true
+      # traefik.http.routers.radarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.radarr.entrypoints: websecure
+      traefik.http.routers.radarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.radarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.radarr.rule: Host(`radarr.${TF_VAR_domain}`)
+      traefik.http.routers.radarr.middlewares: authentik-docker@file
+      traefik.http.services.radarr.loadbalancer.server.port: 7878
+      traefik.http.services.radarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  lidarr:
+    image: linuxserver/lidarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/lidarr:/config
+      - ${MUSIC_PATH}/lidarr:/media/music
+      - ${DOWNLOAD_PATH}:/media/downloads
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.lidarr.tls: true
+      # traefik.http.routers.lidarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.lidarr.entrypoints: websecure
+      traefik.http.routers.lidarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.lidarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.lidarr.rule: Host(`lidarr.${TF_VAR_domain}`)
+      traefik.http.routers.lidarr.middlewares: authentik-docker@file
+      traefik.http.services.lidarr.loadbalancer.server.port: 8686
+      traefik.http.services.lidarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  prowlarr:
+    image: linuxserver/prowlarr:develop
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/prowlarr:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.prowlarr.tls: true
+      # traefik.http.routers.prowlarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.prowlarr.entrypoints: websecure
+      traefik.http.routers.prowlarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.prowlarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.prowlarr.rule: Host(`prowlarr.${TF_VAR_domain}`)
+      traefik.http.routers.prowlarr.middlewares: authentik-docker@file
+      traefik.http.services.prowlarr.loadbalancer.server.port: 9696
+      traefik.http.services.prowlarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  overseerr:
+    image: linuxserver/overseerr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/overseerr:/config
+    healthcheck:
+      test: wget http://localhost:5055/api/v1/status -qO /dev/null || exit 1
+      start_period: 180s
+      timeout: 100s
+      interval: 5s
+      retries: 3
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.overseerr.tls: true
+      # traefik.http.routers.overseerr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.overseerr.entrypoints: websecure
+      traefik.http.routers.overseerr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.overseerr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.overseerr.rule: Host(`overseerr.${TF_VAR_domain}`)
+      traefik.http.routers.overseerr.middlewares: authentik-docker@file
+      traefik.http.services.overseerr.loadbalancer.server.port: 5055
+      traefik.http.services.overseerr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  bazarr:
+    image: linuxserver/bazarr
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/bazarr:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.bazarr.tls: true
+      # traefik.http.routers.bazarr.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.bazarr.entrypoints: websecure
+      traefik.http.routers.bazarr.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.bazarr.tls.domains[0].sans: "*.${TF_VAR_domain}"
+      traefik.http.routers.bazarr.rule: Host(`bazarr.${TF_VAR_domain}`)
+      traefik.http.routers.bazarr.middlewares: authentik-docker@file
+      traefik.http.services.bazarr.loadbalancer.server.port: 6767
+      traefik.http.services.bazarr.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+
+  nastool:
+    image: gitea.${TF_VAR_domain}:8443/eindex/nas-tool:3.2.0
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+      - NASTOOL_AUTO_UPDATE=false
+    volumes:
+      - ${CONFIG_PATH}/nas-tool:/config
+      - ${MEDIA_PATH}/电视剧:/media/tv
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${MEDIA_PATH}/综艺:/media/tvshow
+      - ${MEDIA_PATH}/电影:/media/movie
+      - ${MEDIA_PATH}/纪录片:/media/documentary
+      - ${DOWNLOAD_PATH}:/media/downloads
+    restart: unless-stopped
+    labels:
+      # com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.nastool.tls: true
+      # traefik.http.routers.nastool.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.nastool.entrypoints: websecure
+      traefik.http.routers.nastool.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.nastool.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.nastool.rule: Host(`nastool.${TF_VAR_domain}`)
+      traefik.http.routers.nastool.middlewares: authentik-docker@file
+      traefik.http.services.nastool.loadbalancer.server.port: 3000
+      traefik.http.services.nastool.loadbalancer.passhostheader: true
+
+  qbittorrent:
+    image: linuxserver/qbittorrent
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+    volumes:
+      - ${CONFIG_PATH}/qbittorrent:/config
+      - ${DOWNLOAD_PATH}:/media/downloads
+      - ${MEDIA_PATH}/动漫:/media/anime
+    ports:
+      - 49152:49152/udp
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.qbittorrent.tls: true
+      # traefik.http.routers.qbittorrent.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.qbittorrent.entrypoints: websecure
+      traefik.http.routers.qbittorrent.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.qbittorrent.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.qbittorrent.rule: Host(`qbt.${TF_VAR_domain}`)
+      traefik.http.routers.qbittorrent.middlewares: authentik-docker@file
+      traefik.http.services.qbittorrent.loadbalancer.server.port: 8080
+      traefik.http.services.qbittorrent.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  auto-bangumi:
+    image: estrellaxd/auto_bangumi:latest
+    environment:
+      - PUID=${DOCKER_UID}
+      - PGID=${DOCKER_GID}
+      - TZ=Asia/Shanghai
+      - VERSION=docker
+      - AB_DOWNLOADER_HOST=qbittorrent:8080
+      - AB_DOWNLOADER_USERNAME=eindex # 默认用户名
+      - AB_DOWNLOADER_PASSWORD=1234asdf # 默认密码
+      - AB_INTERVAL_TIME=7200
+      - AB_RENAME_FREQ=20
+      - AB_METHOD=Advance
+      - AB_GROUP_TAG=True
+      - AB_DOWNLOAD_PATH=/media/anime
+      - AB_RSS=https://mikanani.me/RSS/MyBangumi?token=${MIKAN_TOKEN}
+      - AB_DEBUG_MODE=False
+      - AB_EP_COMPLETE=False
+      - AB_WEBUI_PORT=7892
+      - AB_RENAME=True
+      - AB_ENABLE_TMDB=True
+      - AB_LANGUAGE=zh
+      - AB_RSS_COLLECTOR=True
+      - AB_REMOVE_BAD_BT=True
+    volumes:
+      - ${CONFIG_PATH}/autoBangumi/config:/app/config
+      - ${CONFIG_PATH}/autoBangumi/data:/app/data
+      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}:/media/downloads
+    depends_on:
+      - qbittorrent
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.auto-bangumi.tls: true
+      # traefik.http.routers.auto-bangumi.tls.certresolver: ${ACME_NAME}
+      traefik.http.routers.auto-bangumi.entrypoints: websecure
+      traefik.http.routers.auto-bangumi.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.auto-bangumi.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.auto-bangumi.rule: Host(`auto-bangumi.${TF_VAR_domain}`)
+      traefik.http.routers.auto-bangumi.middlewares: authentik-docker@file
+      traefik.http.services.auto-bangumi.loadbalancer.server.port: 7892
+      traefik.http.services.auto-bangumi.loadbalancer.passhostheader: true
+    restart: unless-stopped
+
+  flaresolverr:
+    # DockerHub mirror flaresolverr/flaresolverr:latest
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - TZ=Asia/Shanghai
+    # ports:
+      # - "${PORT:-8191}:8191"
+    restart: unless-stopped
+
+  jproxy:
+    image: luckypuppy514/jproxy:latest
+    container_name: jproxy
+    restart: unless-stopped
+    environment:
+    - PUID=${DOCKER_UID}
+    - PGID=${DOCKER_GID}
+    - TZ=Asia/Shanghai
+    - JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+    - ${CONFIG_PATH}/jproxy/database:/app/database
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+      traefik.enable: true
+      traefik.docker.network: network_default
+      traefik.http.routers.jproxy.tls: true
+      traefik.http.routers.jproxy.entrypoints: websecure
+      traefik.http.routers.jproxy.tls.domains[0].main: ${TF_VAR_domain}
+      traefik.http.routers.jproxy.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+      traefik.http.routers.jproxy.rule: Host(`jproxy.${TF_VAR_domain}`)
+      traefik.http.routers.jproxy.middlewares: authentik-docker@file
+      traefik.http.services.jproxy.loadbalancer.server.port: 8117
+      traefik.http.services.jproxy.loadbalancer.passhostheader: true
+
+
+
+networks:
+  default:
+    name: network_default
+    external: true

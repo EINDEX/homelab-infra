@@ -21,6 +21,14 @@ variable "gitea_client_secret" {
   type = string
 }
 
+variable "strapi_client_id" {
+  type = string
+}
+
+variable "strapi_client_secret" {
+  type = string
+}
+
 locals {
   applications = {
     sonarr = {
@@ -40,16 +48,16 @@ locals {
     }
 
     jackett = {
-      name   = "Jackett"
-      desc   = ""
-      group  = "Media"
-      type   = "proxy"
+      name  = "Jackett"
+      desc  = ""
+      group = "Media"
+      type  = "proxy"
     }
     hc = {
-      name   = "HealthChecks"
-      desc   = "Is Running?"
-      group  = "Development"
-      type   = "proxy"
+      name            = "HealthChecks"
+      desc            = "Is Running?"
+      group           = "Development"
+      type            = "proxy"
       skip_path_regex = "/ping/.*\n/api/.*"
     }
     radarr = {
@@ -78,10 +86,10 @@ locals {
       type  = "proxy"
     }
     memos = {
-      name  = "Mem OS"
-      desc  = "Note"
-      group = ""
-      type  = "proxy"
+      name            = "Mem OS"
+      desc            = "Note"
+      group           = ""
+      type            = "proxy"
       skip_path_regex = "/api/.*"
     }
     bazarr = {
@@ -104,10 +112,10 @@ locals {
       type  = "proxy"
     }
     overseerr = {
-      name  = "Overseerr"
-      desc  = "好片发现"
-      group = "Media"
-      type  = "proxy"
+      name   = "Overseerr"
+      desc   = "好片发现"
+      group  = "Media"
+      type   = "proxy"
       groups = "users"
     }
     router = {
@@ -125,15 +133,15 @@ locals {
 
     traefik = {
       name  = "Traefik"
-      desc  = "Development"
-      group = ""
+      desc  = "API Dashboard"
+      group = "Development"
       type  = "proxy"
     }
     haos = {
-      name  = "Home Assistant"
-      desc  = ""
-      group = "Home Build"
-      type  = "proxy"
+      name            = "Home Assistant"
+      desc            = ""
+      group           = "Home Build"
+      type            = "proxy"
       skip_path_regex = "^/api/.*"
     }
     code-server = {
@@ -152,26 +160,26 @@ locals {
     }
 
     n8n = {
-      name  = "n8n"
-      desc  = ""
-      group = "Development"
-      type  = "proxy"
+      name            = "n8n"
+      desc            = ""
+      group           = "Development"
+      type            = "proxy"
       skip_path_regex = "^/webhook.*\n^/rest/oauth2-credential/"
     }
 
     rss = {
-      name  = "FreshRss"
-      desc  = "RSS"
-      group = ""
-      type  = "proxy"
+      name            = "FreshRss"
+      desc            = "RSS"
+      group           = ""
+      type            = "proxy"
       skip_path_regex = "/api/.*"
     }
 
     auto-bangumi = {
-      name  = "Auto Bangumi"
-      desc  = ""
-      group = ""
-      type  = "proxy"
+      name            = "Auto Bangumi"
+      desc            = ""
+      group           = "Media"
+      type            = "proxy"
       skip_path_regex = ""
     }
 
@@ -182,16 +190,27 @@ locals {
       type          = "oauth"
       client_id     = var.gitea_client_id
       client_secret = var.gitea_client_secret
-      redirect_uris = ["https://gitea.${var.domain}:${var.port}/user/oauth2/Authentik/callback"]
+      redirect_uris = []
     }
 
-    drone = {
-      name          = "Drone"
-      desc          = "Pipeline"
+    strapi = {
+      name          = "Strapi"
+      desc          = ""
       group         = "Development"
-      type          = "proxy"
+      type          = "oauth"
+      client_id     = var.strapi_client_id
+      client_secret = var.strapi_client_secret
+      redirect_uris = []
+    }
+
+
+    drone = {
+      name            = "Drone"
+      desc            = "Pipeline"
+      group           = "Development"
+      type            = "proxy"
       skip_path_regex = "^/api.*\n^/hook.*"
-      
+
     }
 
     valut = {
@@ -208,13 +227,28 @@ locals {
       type   = "simple"
       groups = "users"
     }
+
+    adguard = {
+      name   = "Adguard Home"
+      desc   = ""
+      group  = "Home Build"
+      type   = "proxy"
+      groups = ""
+    }
+    clash = {
+      name  = "Clash"
+      desc  = ""
+      group = "Tools"
+      type  = "proxy"
+      group = ""
+    }
     yttl = {
       name   = "Synology"
       desc   = ""
       group  = ""
       type   = "simple"
       groups = "users"
-      url = "${local.synology_url}"
+      url    = "${local.synology_url}"
     }
     file = {
       name   = "Files"
@@ -222,14 +256,14 @@ locals {
       group  = ""
       type   = "simple"
       groups = "users"
-      url = "${local.synology_url}/files"
+      url    = "${local.synology_url}/files"
     }
     backup = {
-      name   = "Backup"
-      desc   = "群晖备份"
-      group  = "Development"
-      type   = "simple"
-      url = "${local.synology_url}/backup"
+      name  = "Backup"
+      desc  = "群晖备份"
+      group = "Development"
+      type  = "simple"
+      url   = "${local.synology_url}/backup"
     }
     drive = {
       name   = "Synology Drive"
@@ -237,7 +271,7 @@ locals {
       group  = ""
       type   = "simple"
       groups = "users"
-      url = "${local.synology_url}/drive"
+      url    = "${local.synology_url}/drive"
     }
     moments = {
       name   = "Synology Photos"
@@ -245,7 +279,7 @@ locals {
       group  = ""
       type   = "simple"
       groups = "users"
-      url = "${local.synology_url}/photos"
+      url    = "${local.synology_url}/photos"
     }
   }
 }
@@ -264,6 +298,6 @@ locals {
     for slug, app in local.applications : slug => app
     if app.type == "oauth"
   }
-  domain = "${var.domain}:${var.port}"
-  synology_url = "${var.synology_url}"
+  domain       = "${var.domain}:${var.port}"
+  synology_url = var.synology_url
 }
