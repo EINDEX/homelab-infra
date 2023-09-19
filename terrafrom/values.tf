@@ -29,6 +29,15 @@ variable "strapi_client_secret" {
   type = string
 }
 
+variable "dsm_client_id" {
+  type = string
+}
+
+variable "dsm_client_secret" {
+  type = string
+}
+
+
 locals {
   applications = {
     sonarr = {
@@ -99,12 +108,6 @@ locals {
       type  = "proxy"
     }
 
-    jproxy = {
-      name  = "JProxy"
-      desc  = ""
-      group = "Media"
-      type  = "proxy"
-    }
     nastool = {
       name  = "NAS tools"
       desc  = ""
@@ -151,6 +154,12 @@ locals {
       type  = "proxy"
     }
 
+    gpt-web = {
+      name  = "GPT Web"
+      desc  = ""
+      group = ""
+      type  = "proxy"
+    }
 
     st = {
       name  = "Speed Test"
@@ -203,15 +212,16 @@ locals {
       redirect_uris = []
     }
 
-
-    drone = {
-      name            = "Drone"
-      desc            = "Pipeline"
-      group           = "Development"
-      type            = "proxy"
-      skip_path_regex = "^/api.*\n^/hook.*"
-
+    dsm = {
+      name          = "DSM"
+      desc          = ""
+      group         = "Development"
+      type          = "oauth"
+      client_id     = var.dsm_client_id
+      client_secret = var.dsm_client_secret
+      redirect_uris = []
     }
+
 
     valut = {
       name   = "Bitwarden"

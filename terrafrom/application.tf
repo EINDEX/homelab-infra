@@ -55,7 +55,7 @@ resource "authentik_application" "oauth_app" {
 resource "authentik_policy_binding" "oauth_policy_binding" {
   for_each = local.oauth_apps
   target   = authentik_application.oauth_app["${each.key}"].uuid
-  group    = lookup(each.value, "groups", "admin") != "users" ? data.authentik_group.admins.id : data.authentik_group.users.id
+  group    =  data.authentik_group.users.id #lookup(each.value, "groups", "admin") != "users" ? data.authentik_group.admins.id :data.authentik_group.users.id 
   order    = 0
 }
 
@@ -89,7 +89,7 @@ resource "authentik_application" "proxy_app" {
 resource "authentik_policy_binding" "proxy_policy_binding" {
   for_each = local.proxy_apps
   target   = authentik_application.proxy_app["${each.key}"].uuid
-  group    = lookup(each.value, "groups", "admin") != "users" ? data.authentik_group.admins.id : data.authentik_group.users.id
+  group    =  data.authentik_group.users.id #lookup(each.value, "groups", "admin") != "users" ? data.authentik_group.admins.id :data.authentik_group.users.id 
   order    = 0
 }
 
@@ -139,6 +139,20 @@ resource "authentik_application" "simple_app" {
 resource "authentik_policy_binding" "simple_policy_binding" {
   for_each = local.simple_apps
   target   = authentik_application.simple_app["${each.key}"].uuid
-  group    = lookup(each.value, "groups", "admin") != "users" ? data.authentik_group.admins.id : data.authentik_group.users.id
+  group    =  data.authentik_group.users.id #lookup(each.value, "groups", "admin") != "users" ? data.authentik_group.admins.id :data.authentik_group.users.id 
   order    = 0
+}
+
+resource "authentik_provider_ldap" "ldap_provider" {
+  name      = "ldap-provider"
+  base_dn   = "dc=ldap,dc=goauthentik,dc=io"
+  bind_flow = data.authentik_flow.authentication_flow.id
+}
+
+resource "authentik_outpost" "ldap_outpost" {
+  name = "ldap-outpost"
+  type = "ldap"
+  protocol_providers = [
+    authentik_provider_ldap.ldap_provider.id
+  ]
 }

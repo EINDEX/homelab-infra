@@ -4,11 +4,10 @@ services:
   
 
   fava:
-    # image: yegle/fava
+    container_name: fava
     image: gitea.${TF_VAR_domain}:8443/eindex/fava
+    user: root
     environment:
-      - PUID=1026
-      - PGID=100
       - TZ=Asia/Shanghai
       # - BEANCOUNT_FILE=/data/main.bean
     volumes:
@@ -28,7 +27,6 @@ services:
       traefik.http.services.fava.loadbalancer.server.port: 5000
       traefik.http.services.fava.loadbalancer.passhostheader: true
     restart: unless-stopped
-    
 
   money-postgresql:
     image: docker.io/library/postgres:15-alpine

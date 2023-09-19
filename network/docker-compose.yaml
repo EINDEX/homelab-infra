@@ -77,10 +77,7 @@ services:
       - ${CONFIG_PATH}/acme:/certs
     restart: unless-stopped
 
-
-
-
-  # cf_tunnel:
-  #   image: cloudflare/cloudflared:latest
-  #   command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
-  #   restart: always
+  cf_tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    restart: always

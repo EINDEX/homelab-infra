@@ -12,7 +12,7 @@ services:
     volumes:
       - ${CONFIG_PATH}/plex:/config
       - ${MEDIA_PATH}/电视剧:/media/tv
-      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}/anime:/media/anime
       - ${MEDIA_PATH}/综艺:/media/tvshow
       - ${MEDIA_PATH}/电影:/media/movie
       - ${MEDIA_PATH}/纪录片:/media/documentary
@@ -60,7 +60,7 @@ services:
     volumes:
       - ${CONFIG_PATH}/sonarr:/config
       - ${MEDIA_PATH}/电视剧:/media/tv
-      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}/anime:/media/anime
       - ${MEDIA_PATH}/综艺:/media/tvshow
       - ${MEDIA_PATH}/纪录片:/media/documentary
       - ${DOWNLOAD_PATH}:/media/downloads
@@ -223,7 +223,7 @@ services:
     volumes:
       - ${CONFIG_PATH}/bazarr:/config
       - ${MEDIA_PATH}/电视剧:/media/tv
-      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}/anime:/media/anime
       - ${MEDIA_PATH}/综艺:/media/tvshow
       - ${MEDIA_PATH}/电影:/media/movie
       - ${MEDIA_PATH}/纪录片:/media/documentary
@@ -254,7 +254,7 @@ services:
     volumes:
       - ${CONFIG_PATH}/nas-tool:/config
       - ${MEDIA_PATH}/电视剧:/media/tv
-      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}/anime:/media/anime
       - ${MEDIA_PATH}/综艺:/media/tvshow
       - ${MEDIA_PATH}/电影:/media/movie
       - ${MEDIA_PATH}/纪录片:/media/documentary
@@ -284,7 +284,7 @@ services:
     volumes:
       - ${CONFIG_PATH}/qbittorrent:/config
       - ${DOWNLOAD_PATH}:/media/downloads
-      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}/anime:/media/anime
     ports:
       - 49152:49152/udp
     labels:
@@ -329,7 +329,7 @@ services:
     volumes:
       - ${CONFIG_PATH}/autoBangumi/config:/app/config
       - ${CONFIG_PATH}/autoBangumi/data:/app/data
-      - ${MEDIA_PATH}/动漫:/media/anime
+      - ${DOWNLOAD_PATH}/anime:/media/anime
       - ${DOWNLOAD_PATH}:/media/downloads
     depends_on:
       - qbittorrent
@@ -349,7 +349,6 @@ services:
     restart: unless-stopped
 
   flaresolverr:
-    # DockerHub mirror flaresolverr/flaresolverr:latest
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     environment:
@@ -357,33 +356,7 @@ services:
       - LOG_HTML=${LOG_HTML:-false}
       - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
       - TZ=Asia/Shanghai
-    # ports:
-      # - "${PORT:-8191}:8191"
     restart: unless-stopped
-
-  jproxy:
-    image: luckypuppy514/jproxy:latest
-    container_name: jproxy
-    restart: unless-stopped
-    environment:
-    - PUID=${DOCKER_UID}
-    - PGID=${DOCKER_GID}
-    - TZ=Asia/Shanghai
-    - JAVA_OPTS=-Xms512m -Xmx512m
-    volumes:
-    - ${CONFIG_PATH}/jproxy/database:/app/database
-    labels:
-      com.centurylinklabs.watchtower.enable: true
-      traefik.enable: true
-      traefik.docker.network: network_default
-      traefik.http.routers.jproxy.tls: true
-      traefik.http.routers.jproxy.entrypoints: websecure
-      traefik.http.routers.jproxy.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.jproxy.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-      traefik.http.routers.jproxy.rule: Host(`jproxy.${TF_VAR_domain}`)
-      traefik.http.routers.jproxy.middlewares: authentik-docker@file
-      traefik.http.services.jproxy.loadbalancer.server.port: 8117
-      traefik.http.services.jproxy.loadbalancer.passhostheader: true
 
 
 
