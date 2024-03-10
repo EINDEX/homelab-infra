@@ -37,6 +37,22 @@ variable "dsm_client_secret" {
   type = string
 }
 
+variable "penpot_client_id" {
+  type = string
+}
+
+variable "penpot_client_secret" {
+  type = string
+}
+
+variable "outline_client_id" {
+  type = string
+}
+
+variable "outline_client_secret" {
+  type = string
+}
+
 
 locals {
   applications = {
@@ -48,16 +64,9 @@ locals {
       groups = "users"
     }
 
-    calibre-web = {
-      name   = "Calibre Web"
-      desc   = ""
-      group  = "Media"
-      type   = "proxy"
-      groups = "users"
-    }
 
-    jackett = {
-      name  = "Jackett"
+    jproxy = {
+      name  = "Jproxy"
       desc  = ""
       group = "Media"
       type  = "proxy"
@@ -82,6 +91,7 @@ locals {
       group = "Media"
       type  = "proxy"
     }
+
     prowlarr = {
       name  = "Prowlarr"
       desc  = "种子中心"
@@ -94,13 +104,7 @@ locals {
       group = "Media"
       type  = "proxy"
     }
-    memos = {
-      name            = "Mem OS"
-      desc            = "Note"
-      group           = ""
-      type            = "proxy"
-      skip_path_regex = "/api/.*"
-    }
+
     bazarr = {
       name  = "Bazarr"
       desc  = ""
@@ -108,12 +112,6 @@ locals {
       type  = "proxy"
     }
 
-    nastool = {
-      name  = "NAS tools"
-      desc  = ""
-      group = "Media"
-      type  = "proxy"
-    }
     overseerr = {
       name   = "Overseerr"
       desc   = "好片发现"
@@ -121,12 +119,7 @@ locals {
       type   = "proxy"
       groups = "users"
     }
-    router = {
-      name  = "OpenWrt"
-      desc  = "路由器"
-      group = "Home Build"
-      type  = "proxy"
-    }
+
     fava = {
       name  = "Fava"
       desc  = "Finance"
@@ -160,6 +153,19 @@ locals {
       group = ""
       type  = "proxy"
     }
+    calibre = {
+      name  = "Calibre"
+      desc  = ""
+      group = "Media"
+      type  = "proxy"
+    }
+
+    auto-bangumi = {
+      name  = "Auto Bangumi"
+      desc  = ""
+      group = "Media"
+      type  = "proxy"
+    }
 
     st = {
       name  = "Speed Test"
@@ -168,29 +174,13 @@ locals {
       type  = "proxy"
     }
 
-    n8n = {
-      name            = "n8n"
-      desc            = ""
-      group           = "Development"
-      type            = "proxy"
-      skip_path_regex = "^/webhook.*\n^/rest/oauth2-credential/"
-    }
-
-    rss = {
-      name            = "FreshRss"
-      desc            = "RSS"
-      group           = ""
-      type            = "proxy"
-      skip_path_regex = "/api/.*"
-    }
-
-    auto-bangumi = {
-      name            = "Auto Bangumi"
-      desc            = ""
-      group           = "Media"
-      type            = "proxy"
-      skip_path_regex = ""
-    }
+    # n8n = {
+    #   name            = "n8n"
+    #   desc            = ""
+    #   group           = "Development"
+    #   type            = "proxy"
+    #   skip_path_regex = "^/webhook.*\n^/rest/oauth2-credential/"
+    # }
 
     gitea = {
       name          = "Gitea"
@@ -199,29 +189,19 @@ locals {
       type          = "oauth"
       client_id     = var.gitea_client_id
       client_secret = var.gitea_client_secret
-      redirect_uris = []
+      redirect_uris = ["https://gitea.xllb.cc:8443/user/oauth2/Authentik/callback"]
     }
 
-    strapi = {
-      name          = "Strapi"
-      desc          = ""
-      group         = "Development"
-      type          = "oauth"
-      client_id     = var.strapi_client_id
-      client_secret = var.strapi_client_secret
-      redirect_uris = []
-    }
-
-    dsm = {
-      name          = "DSM"
-      desc          = ""
-      group         = "Development"
-      type          = "oauth"
-      client_id     = var.dsm_client_id
-      client_secret = var.dsm_client_secret
-      redirect_uris = []
-    }
-
+    # outline = {
+    #   name          = "Outline"
+    #   desc          = "Wiki"
+    #   group         = "Development"
+    #   type          = "oauth"
+    #   groups = "users"
+    #   client_id     = var.outline_client_id
+    #   client_secret = var.outline_client_secret
+    #   redirect_uris = ["https://outline.xllb.cc:8443/.*"]
+    # }
 
     valut = {
       name   = "Bitwarden"
@@ -230,6 +210,16 @@ locals {
       type   = "simple"
       groups = "users"
     }
+
+    vault = {
+      name   = "Bitwarden"
+      desc   = "密码管理"
+      group  = ""
+      type   = "simple"
+      groups = "users"
+    }
+
+    
     plex = {
       name   = "Plex"
       desc   = "多媒体中心"
@@ -238,20 +228,6 @@ locals {
       groups = "users"
     }
 
-    adguard = {
-      name   = "Adguard Home"
-      desc   = ""
-      group  = "Home Build"
-      type   = "proxy"
-      groups = ""
-    }
-    clash = {
-      name  = "Clash"
-      desc  = ""
-      group = "Tools"
-      type  = "proxy"
-      group = ""
-    }
     yttl = {
       name   = "Synology"
       desc   = ""

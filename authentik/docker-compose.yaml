@@ -27,6 +27,11 @@ services:
       - TZ=Asia/Shanghai
     networks:
       - authentik
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    cpu_shares: 4
 
   authentik-redis:
     image: docker.io/library/redis:alpine
@@ -43,6 +48,11 @@ services:
       - ${CONFIG_PATH}/authentik/redis:/data
     networks:
       - authentik
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    cpu_shares: 4
 
   authentik-server:
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2022.10.1}
@@ -61,6 +71,9 @@ services:
       - ${CONFIG_PATH}/authentik/shm:/dev/shm
       # - /var/run/docker.sock:/var/run/docker.sock
     user: root
+    depends_on:
+      - authentik-redis
+      - authentik-postgresql
     labels:
       traefik.enable: true
       traefik.docker.network: network_default
@@ -75,17 +88,21 @@ services:
     networks:
       - default
       - authentik
-
-  authentik-ldap:
-    image: ghcr.io/goauthentik/ldap:${AUTHENTIK_TAG:-2022.10.1}
-    ports:
-      - 3389:3389
-    environment:
-      AUTHENTIK_HOST: http://authentik-server:9000
-      AUTHENTIK_INSECURE: "true"
-      AUTHENTIK_TOKEN: ${AUTHENTIK_LADP_TOKEN}
-    networks:
-      - authentik
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    cpu_shares: 4
+  #authentik-ldap:
+  #  image: ghcr.io/goauthentik/ldap:${AUTHENTIK_TAG:-2022.10.1}
+  #  ports:
+  #    - 3389:3389
+  #  environment:
+  #    AUTHENTIK_HOST: http://authentik-server:9000
+  #    AUTHENTIK_INSECURE: "true"
+  #    AUTHENTIK_TOKEN: ${AUTHENTIK_LADP_TOKEN}
+  #  networks:
+  #    - authentik
 
   authentik-worker:
     image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2022.10.1}
@@ -102,6 +119,8 @@ services:
       AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_PG_PASS}
     user: root
+    depends_on:
+      - authentik-server
     volumes:
       - ${CONFIG_PATH}/authentik/media:/media
       - ${CONFIG_PATH}/authentik/certs:/certs
@@ -110,7 +129,11 @@ services:
       # - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - authentik
-
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    cpu_shares: 2
   authentik-proxy:
     image: ghcr.io/goauthentik/proxy:${AUTHENTIK_TAG:-2022.10.1}
     environment:
@@ -121,6 +144,8 @@ services:
     networks:
       - default
       - authentik
+    depends_on:
+      - authentik-server
     labels:
       traefik.enable: true
       traefik.docker.network: network_default
@@ -133,7 +158,11 @@ services:
       traefik.http.services.sso-proxy.loadbalancer.server.port: 9000
       traefik.http.services.sso-proxy.loadbalancer.passhostheader: true
     restart: unless-stopped
-
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    cpu_shares: 2
 networks:
   default:
     name: network_default

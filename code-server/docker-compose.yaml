@@ -13,6 +13,9 @@ services:
       - TZ=Asia/Shanghai
       - DOCKER_USER=eindex
       - ENTRYPOINTD=/home/coder/entrypoint.d
+      - https_proxy=http://172.16.0.52:7890
+      - http_proxy=http://172.16.0.52:7890
+      - all_proxy=socks://172.16.0.52:7890
     volumes:
       - ${CONFIG_PATH}/code-server:/home/coder/.config
       - /volume5/workspace/workspace:/home/coder
@@ -34,7 +37,11 @@ services:
       traefik.http.routers.code-server.middlewares: authentik-docker@file
       traefik.http.services.code-server.loadbalancer.server.port: 8080
       traefik.http.services.code-server.loadbalancer.passhostheader: true
-
+    deploy:
+      resources:
+        limits:
+          memory: 10g
+    cpu_shares: 4
 networks:
   default:
     name: network_default

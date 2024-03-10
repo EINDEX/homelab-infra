@@ -27,28 +27,32 @@ services:
       traefik.http.services.fava.loadbalancer.server.port: 5000
       traefik.http.services.fava.loadbalancer.passhostheader: true
     restart: unless-stopped
-
-  money-postgresql:
-    image: docker.io/library/postgres:15-alpine
-    user: ${DOCKER_UID}:${DOCKER_GID}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 5s
-    ports:
-      - 25432:5432
-    volumes:
-      - ${CONFIG_PATH}/money/database:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_PASSWORD=${MONEY_PG_PASS:?database password required}
-      - POSTGRES_USER=${MONEY_PG_USER:-money}
-      - POSTGRES_DB=${MONEY_PG_DB:-money}
-      - PUID=1026
-      - PGID=100
-      - TZ=Asia/Shanghai
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    cpu_shares: 2
+  # money-postgresql:
+  #   image: docker.io/library/postgres:15-alpine
+  #   user: ${DOCKER_UID}:${DOCKER_GID}
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+  #     start_period: 20s
+  #     interval: 30s
+  #     retries: 5
+  #     timeout: 5s
+  #   ports:
+  #     - 25432:5432
+  #   volumes:
+  #     - ${CONFIG_PATH}/money/database:/var/lib/postgresql/data
+  #   environment:
+  #     - POSTGRES_PASSWORD=${MONEY_PG_PASS:?database password required}
+  #     - POSTGRES_USER=${MONEY_PG_USER:-money}
+  #     - POSTGRES_DB=${MONEY_PG_DB:-money}
+  #     - PUID=1026
+  #     - PGID=100
+  #     - TZ=Asia/Shanghai
 networks:
   default:
     name: network_default

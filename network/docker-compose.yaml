@@ -13,6 +13,11 @@ services:
       - "CERT_DNS=dns_cf"
     command: daemon
     container_name: acme
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+    cpu_shares: 2
 
 
   traefik:
@@ -31,7 +36,7 @@ services:
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       # - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
       - "--entrypoints.websecure.http.redirections.entryPoint.scheme=https"
-#      - "--entrypoints.websecure.http.middlewares=security@file,to-https@file"
+      #- "--entrypoints.websecure.http.middlewares=security@file,to-https@file"
       - "--entryPoints.web.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
       - "--entryPoints.websecure.forwardedHeaders.trustedIPs=10.0.0.0/20,172.0.0.0/8"
       - "--entrypoints.websecure.address=:${TF_VAR_port}"
@@ -76,8 +81,60 @@ services:
       - ${CONFIG_PATH}/traefik:/traefik
       - ${CONFIG_PATH}/acme:/certs
     restart: unless-stopped
-
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    cpu_shares: 4
   cf_tunnel:
     image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
     restart: always
+    labels:
+      com.centurylinklabs.watchtower.enable: true
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+    cpu_shares: 2
+
+  acme-derper:
+    image: neilpang/acme.sh:latest
+    volumes:
+      - ${CONFIG_PATH}/derper-acme:/acme.sh
+    environment:
+      # Azure
+      - "CF_Token=${CF_DNS_API_TOKEN}"
+      - "CF_Email=snowstarlbk@gmail.com"
+      - "CERT_DOMAIN=derper.${TF_VAR_domain}"
+      - "CERT_DNS=dns_cf"
+    command: daemon
+    container_name: acme-derper
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+    cpu_shares: 2
+
+  derper:
+    image: fredliang/derper
+    restart: unless-stopped
+    environment:
+      - DERP_DOMAIN=derper.xllb.cc
+      - DERP_ADDR=:41641
+      - DERP_CERT_MODE=manual
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - 41641:41641
+      - 5672:5672/udp
+    volumes:
+      - ${CONFIG_PATH}/derper-acme/derper.xllb.cc_ecc:/app/certs
+      - ${CONFIG_PATH}/derper:/config
+    labels:
+      com.centurylinklabs.watchtower.enable: true

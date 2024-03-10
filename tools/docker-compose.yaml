@@ -16,6 +16,11 @@ services:
       traefik.http.routers.st.middlewares: authentik-docker@file
       traefik.http.services.st.loadbalancer.server.port: 80
       traefik.http.services.st.loadbalancer.passhostheader: true
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+    cpu_shares: 2
 
   gpt-web:
     image: yidadaa/chatgpt-next-web
@@ -37,7 +42,11 @@ services:
       traefik.http.routers.gpt-web.middlewares: authentik-docker@file
       traefik.http.services.gpt-web.loadbalancer.server.port: 3000
       traefik.http.services.gpt-web.loadbalancer.passhostheader: true
-
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+    cpu_shares: 2
 
   vaultwarden:
     image: vaultwarden/server
@@ -58,98 +67,110 @@ services:
       traefik.http.routers.vaultwarden.entrypoints: websecure
       traefik.http.routers.vaultwarden.tls.domains[0].main: ${TF_VAR_domain}
       traefik.http.routers.vaultwarden.tls.domains[0].sans: "*.${TF_VAR_domain}"
-      traefik.http.routers.vaultwarden.rule: Host(`valut.${TF_VAR_domain}`)
+      traefik.http.routers.vaultwarden.rule: "Host(`valut.${TF_VAR_domain}`) || Host(`vault.${TF_VAR_domain}`)"
       traefik.http.services.vaultwarden.loadbalancer.server.port: 80
       traefik.http.services.vaultwarden.loadbalancer.passhostheader: true
     restart: unless-stopped
-
-  memos:
-    image: neosmemo/memos:latest
-    environment:
-      - PUID=${DOCKER_UID}
-      - PGID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
-      - VERSION=docker
-    volumes:
-      - ${CONFIG_PATH}/memos:/var/opt/memos
-    labels:
-      com.centurylinklabs.watchtower.enable: true
-      traefik.enable: true
-      traefik.docker.network: network_default
-      traefik.http.routers.memos.tls: true
-      # traefik.http.routers.memos.tls.certresolver: ${ACME_NAME}
-      traefik.http.routers.memos.entrypoints: websecure
-      traefik.http.routers.memos.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.memos.tls.domains[0].sans: "*.${TF_VAR_domain}"      
-      traefik.http.routers.memos.rule: Host(`memos.${TF_VAR_domain}`)
-      traefik.http.routers.memos.middlewares: authentik-docker@file
-      traefik.http.services.memos.loadbalancer.server.port: 5230
-      traefik.http.services.memos.loadbalancer.passhostheader: true
-    restart: unless-stopped
-
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    cpu_shares: 2
+    
+  # memos:
+  #   image: neosmemo/memos:latest
+  #   environment:
+  #     - PUID=${DOCKER_UID}
+  #     - PGID=${DOCKER_GID}
+  #     - TZ=Asia/Shanghai
+  #     - VERSION=docker
+  #   volumes:
+  #     - ${CONFIG_PATH}/memos:/var/opt/memos
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: true
+  #     traefik.enable: true
+  #     traefik.docker.network: network_default
+  #     traefik.http.routers.memos.tls: true
+  #     # traefik.http.routers.memos.tls.certresolver: ${ACME_NAME}
+  #     traefik.http.routers.memos.entrypoints: websecure
+  #     traefik.http.routers.memos.tls.domains[0].main: ${TF_VAR_domain}
+  #     traefik.http.routers.memos.tls.domains[0].sans: "*.${TF_VAR_domain}"      
+  #     traefik.http.routers.memos.rule: Host(`memos.${TF_VAR_domain}`)
+  #     traefik.http.routers.memos.middlewares: authentik-docker@file
+  #     traefik.http.services.memos.loadbalancer.server.port: 5230
+  #     traefik.http.services.memos.loadbalancer.passhostheader: true
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 500m
+  #   cpu_shares: 2
 
   haos:
-      image: homeassistant/home-assistant:stable
-      privileged: true
-      environment:
-      - PUID=${DOCKER_UID}
-      - PGID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
-      container_name: home-assistant
-      network_mode: "host"
-      restart: unless-stopped
-      volumes:
-        - /etc/localtime:/etc/localtime:ro
-        - ${CONFIG_PATH}/haos:/config
-        - /run/mysqld/mysqld.sock:/var/lib/mysql/mysql.sock
-      labels:
-        com.centurylinklabs.watchtower.enable: true
-
-  rsshub:
-    image: diygod/rsshub
+    image: homeassistant/home-assistant:stable
+    privileged: true
     environment:
-      - PUID=${DOCKER_UID}
-      - PGID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
-      - ACCESS_KEY=${RSSHUB_ACCESS_KEY}
-      - BILIBILI_COOKIE_3163682=${BILIBILI_COOKIE}
-      - WHITELIST=172.0.0.0/8
-    labels:
-      com.centurylinklabs.watchtower.enable: true
-      traefik.enable: true
-      traefik.docker.network: network_default
-      traefik.http.routers.rsshub.tls: true
-      # traefik.http.routers.rsshub.tls.certresolver: ${ACME_NAME}
-      traefik.http.routers.rsshub.entrypoints: websecure
-      traefik.http.routers.rsshub.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.rsshub.tls.domains[0].sans: "*.${TF_VAR_domain}"
-      traefik.http.routers.rsshub.rule: Host(`rsshub.${TF_VAR_domain}`)
-      traefik.http.services.rsshub.loadbalancer.server.port: 1200
-      traefik.http.services.rsshub.loadbalancer.passhostheader: true
+    - PUID=${DOCKER_UID}
+    - PGID=${DOCKER_GID}
+    - TZ=Asia/Shanghai
+    container_name: home-assistant
+    network_mode: "host"
     restart: unless-stopped
-
-  rss:
-    image: lscr.io/linuxserver/freshrss
-    environment:
-      - PUID=${DOCKER_UID}
-      - PGID=${DOCKER_GID}
-      - TZ=Asia/Shanghai
     volumes:
-      -  ${CONFIG_PATH}/rss:/config
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_PATH}/haos:/config
     labels:
       com.centurylinklabs.watchtower.enable: true
-      traefik.enable: true
-      traefik.docker.network: network_default
-      traefik.http.routers.rss.tls: true
-      # traefik.http.routers.rss.tls.certresolver: ${ACME_NAME}
-      traefik.http.routers.rss.entrypoints: websecure
-      traefik.http.routers.rss.tls.domains[0].main: ${TF_VAR_domain}
-      traefik.http.routers.rss.tls.domains[0].sans: "*.${TF_VAR_domain}"
-      traefik.http.routers.rss.rule: Host(`rss.${TF_VAR_domain}`)
-      traefik.http.routers.rss.middlewares: authentik-docker@file
-      traefik.http.services.rss.loadbalancer.server.port: 80
-      traefik.http.services.rss.loadbalancer.passhostheader: true
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    cpu_shares: 2
+  # rsshub:
+  #   image: diygod/rsshub
+  #   environment:
+  #     - PUID=${DOCKER_UID}
+  #     - PGID=${DOCKER_GID}
+  #     - TZ=Asia/Shanghai
+  #     - ACCESS_KEY=${RSSHUB_ACCESS_KEY}
+  #     - BILIBILI_COOKIE_3163682=${BILIBILI_COOKIE}
+  #     - WHITELIST=172.0.0.0/8
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: true
+  #     traefik.enable: true
+  #     traefik.docker.network: network_default
+  #     traefik.http.routers.rsshub.tls: true
+  #     # traefik.http.routers.rsshub.tls.certresolver: ${ACME_NAME}
+  #     traefik.http.routers.rsshub.entrypoints: websecure
+  #     traefik.http.routers.rsshub.tls.domains[0].main: ${TF_VAR_domain}
+  #     traefik.http.routers.rsshub.tls.domains[0].sans: "*.${TF_VAR_domain}"
+  #     traefik.http.routers.rsshub.rule: Host(`rsshub.${TF_VAR_domain}`)
+  #     traefik.http.services.rsshub.loadbalancer.server.port: 1200
+  #     traefik.http.services.rsshub.loadbalancer.passhostheader: true
+  #   restart: unless-stopped
+
+  # rss:
+  #   image: lscr.io/linuxserver/freshrss
+  #   environment:
+  #     - PUID=${DOCKER_UID}
+  #     - PGID=${DOCKER_GID}
+  #     - TZ=Asia/Shanghai
+  #   volumes:
+  #     -  ${CONFIG_PATH}/rss:/config
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: true
+  #     traefik.enable: true
+  #     traefik.docker.network: network_default
+  #     traefik.http.routers.rss.tls: true
+  #     # traefik.http.routers.rss.tls.certresolver: ${ACME_NAME}
+  #     traefik.http.routers.rss.entrypoints: websecure
+  #     traefik.http.routers.rss.tls.domains[0].main: ${TF_VAR_domain}
+  #     traefik.http.routers.rss.tls.domains[0].sans: "*.${TF_VAR_domain}"
+  #     traefik.http.routers.rss.rule: Host(`rss.${TF_VAR_domain}`)
+  #     traefik.http.routers.rss.middlewares: authentik-docker@file
+  #     traefik.http.services.rss.loadbalancer.server.port: 80
+  #     traefik.http.services.rss.loadbalancer.passhostheader: true
+  #   restart: unless-stopped
 
   watchtower:
     image: containrrr/watchtower
@@ -164,6 +185,70 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/localtime:/etc/localtime:ro
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+    cpu_shares: 2
+
+  
+  # linkwarden:
+  #   image: gitea.xllb.cc:8443/eindex/linkwarden 
+  #   environment:
+  #     - DATABASE_URL=postgresql://postgres:${LINKWARDEN_PG_PASSWORD}@linkwarden-postgres:5432/postgres
+  #     - NEXTAUTH_SECRET=31a411a2de25654f572168fd2435e1de
+  #     - NEXTAUTH_URL=https://linkwarden.${TF_VAR_domain}:8443
+  #   restart: always
+  #   volumes:
+  #     - ${CONFIG_PATH}/linkwarden/data:/data/data
+  #   depends_on:
+  #     - linkwarden-postgres
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: true
+  #     traefik.enable: true
+  #     traefik.docker.network: network_default
+  #     traefik.http.routers.linkwarden.tls: true
+  #     # traefik.http.routers.rsshub.tls.certresolver: ${ACME_NAME}
+  #     traefik.http.routers.linkwarden.entrypoints: websecure
+  #     traefik.http.routers.linkwarden.tls.domains[0].main: ${TF_VAR_domain}
+  #     traefik.http.routers.linkwarden.tls.domains[0].sans: "*.${TF_VAR_domain}"
+  #     traefik.http.routers.linkwarden.rule: Host(`linkwarden.${TF_VAR_domain}`)
+  #     traefik.http.routers.linkwarden.middlewares: authentik-docker@file
+  #     traefik.http.services.linkwarden.loadbalancer.server.port: 3000
+  #     traefik.http.services.linkwarden.loadbalancer.passhostheader: true
+
+  # linkwarden-postgres:
+  #   image: postgres
+  #   environment:
+  #     - POSTGRES_PASSWORD=${LINKWARDEN_PG_PASSWORD}
+  #   restart: always
+  #   volumes:
+  #     - ${CONFIG_PATH}/linkwarden/pgdata:/var/lib/postgresql/data
+
+
+# $ docker run --rm -it -e COUCHDB_USER=admin -e COUCHDB_PASSWORD=password -v /path/to/local.ini:/opt/couchdb/etc/local.ini -p 5984:5984 couchdb
+  # obsidian-livesync:
+  #   image: couchdb:3
+  #   user: ${DOCKER_UID}:${DOCKER_GID}
+  #   environment:
+  #     - COUCHDB_USER=eindex
+  #     - COUCHDB_PASSWORD=1234asdfQWER!@#$
+  #   volumes:
+  #     - ${CONFIG_PATH}/obsidian-sync/eindex/data:/opt/couchdb/data
+  #     - ${CONFIG_PATH}/obsidian-sync/eindex/local.ini:/opt/couchdb/etc/local.ini
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: true
+  #     traefik.enable: true
+  #     traefik.docker.network: network_default
+  #     traefik.http.routers.obsidian-sync.tls: true
+  #     # traefik.http.routers.rsshub.tls.certresolver: ${ACME_NAME}
+  #     traefik.http.routers.obsidian-sync.entrypoints: websecure
+  #     traefik.http.routers.obsidian-sync.tls.domains[0].main: ${TF_VAR_domain}
+  #     traefik.http.routers.obsidian-sync.tls.domains[0].sans: "*.${TF_VAR_domain}"
+  #     traefik.http.routers.obsidian-sync.rule: Host(`obsidian-sync.${TF_VAR_domain}`)
+  #     # traefik.http.routers.obsidian-sync.middlewares: authentik-docker@file
+  #     traefik.http.services.obsidian-sync.loadbalancer.server.port: 5984
+  #     traefik.http.services.obsidian-sync.loadbalancer.passhostheader: true
 
 networks:
   default:
